@@ -66,7 +66,7 @@ function findReset(output) {
     return "unknown";
   }
 
-  return resetMatch[1].trim();
+  return cleanReset(resetMatch[1]);
 }
 
 function findLineReset(output, labelPattern) {
@@ -76,5 +76,12 @@ function findLineReset(output, labelPattern) {
   }
 
   const resetMatch = line.match(/resets?\s+([^)]+)/i);
-  return resetMatch ? resetMatch[1].trim() : findReset(output);
+  return resetMatch ? cleanReset(resetMatch[1]) : findReset(output);
+}
+
+function cleanReset(value) {
+  return value
+    .replace(/[)\]|│]+$/g, "")
+    .replace(/\s*[)\]|│]+\s*$/g, "")
+    .trim();
 }
