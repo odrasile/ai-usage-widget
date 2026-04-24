@@ -1,4 +1,4 @@
-export type ProviderName = "codex" | "claude";
+export type ProviderName = string;
 
 export type ProviderUsage = {
   provider: ProviderName;
