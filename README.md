@@ -2,6 +2,24 @@
 
 Widget desktop para Windows y Ubuntu que muestra el uso disponible de Codex y Claude Code usando sus CLIs locales.
 
+## Estado del repositorio
+
+- Licencia: MIT
+- Autor: Elisardo González Agulla
+- Stack: Tauri + TypeScript + backend Node local
+
+## Publicacion en GitHub
+
+El repositorio queda preparado para publicarse con:
+
+- `README.md`
+- `LICENSE`
+- `.gitignore`
+- `.gitattributes`
+- `CONTRIBUTING.md`
+- `SECURITY.md`
+- plantillas basicas de issues y pull request en `.github/`
+
 ## Requisitos
 
 - Windows o Ubuntu

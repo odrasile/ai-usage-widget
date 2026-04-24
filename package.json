@@ -1,7 +1,9 @@
 {
   "name": "ai-usage-widget",
   "version": "0.1.0",
-  "private": true,
+  "private": false,
+  "author": "Elisardo González Agulla",
+  "license": "MIT",
   "type": "module",
   "scripts": {
     "dev": "vite --host 127.0.0.1",

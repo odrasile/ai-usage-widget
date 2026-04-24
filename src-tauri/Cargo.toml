@@ -2,7 +2,7 @@
 name = "ai-usage-widget"
 version = "0.1.0"
 description = "Floating desktop widget for AI coding CLI usage"
-authors = ["MonitorAI"]
+authors = ["Elisardo González Agulla"]
 edition = "2021"
 
 [build-dependencies]
