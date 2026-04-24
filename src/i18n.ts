@@ -4,6 +4,8 @@ export type Messages = {
   appTitle: string;
   close: string;
   hideToTray: string;
+  about: string;
+  developedBy: string;
   detecting: string;
   noProviders: string;
   updated: string;
@@ -19,6 +21,8 @@ const messages: Record<Locale, Messages> = {
     appTitle: "AI Usage",
     close: "Close",
     hideToTray: "Hide to tray",
+    about: "About",
+    developedBy: "Developed by @odrasile",
     detecting: "Detecting CLIs",
     noProviders: "No providers detected",
     updated: "Updated",
@@ -32,6 +36,8 @@ const messages: Record<Locale, Messages> = {
     appTitle: "Uso AI",
     close: "Cerrar",
     hideToTray: "Ocultar a bandeja",
+    about: "Información",
+    developedBy: "Developed by @odrasile",
     detecting: "Detectando CLIs",
     noProviders: "No se detectaron proveedores",
     updated: "Actualizado",

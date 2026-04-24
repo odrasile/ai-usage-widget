@@ -30,6 +30,24 @@ test("parses claude usage and calculates percent left", () => {
   assert.equal(usage.primary.reset, "18:00");
 });
 
+test("parses claude usage when cli reports percent used", () => {
+  const usage = parseClaudeUsage("Status Config Usage Stats Current session 0% used Resets 2:20pm (Europe/Madrid) Current week (all models) 25% used Resets Apr 29, 12am (Europe/Madrid)");
+
+  assert.equal(usage.primary.percent_left, 100);
+  assert.equal(usage.primary.reset, "2:20pm (Europe/Madrid)");
+  assert.equal(usage.weekly.percent_left, 75);
+  assert.equal(usage.weekly.reset, "Apr 29, 12am (Europe/Madrid)");
+});
+
+test("parses claude usage from cleaned tty output with merged labels", () => {
+  const usage = parseClaudeUsage("Status Config Usage Stats Session Totalcost:$0.0000 Currentsession0%used Resets2:20pm(Europe/Madrid) Currentweek(allmodels)0%used ResetsApr29,12am(Europe/Madrid) Refreshing Esc to cancel");
+
+  assert.equal(usage.primary.percent_left, 100);
+  assert.equal(usage.primary.reset, "2:20pm(Europe/Madrid)");
+  assert.equal(usage.weekly.percent_left, 100);
+  assert.equal(usage.weekly.reset, "Apr29,12am(Europe/Madrid)");
+});
+
 test("returns null for invalid claude totals", () => {
   assert.equal(parseClaudeUsage("Remaining requests: 10\nTotal requests: 0"), null);
 });

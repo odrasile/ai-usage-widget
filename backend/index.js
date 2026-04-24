@@ -10,8 +10,8 @@ if (command !== "snapshot") {
 
 try {
   const snapshot = await getUsageSnapshot(projectRoot);
-  process.stdout.write(JSON.stringify(snapshot));
+  process.stdout.write(JSON.stringify(snapshot), () => process.exit(0));
 } catch (error) {
-  console.error(error instanceof Error ? error.message : String(error));
-  process.exit(1);
+  const message = error instanceof Error ? error.message : String(error);
+  process.stderr.write(message, () => process.exit(1));
 }

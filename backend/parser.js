@@ -1,3 +1,6 @@
+const CLAUDE_SESSION_LABEL = /(?:current\s*session|currentsession)/i;
+const CLAUDE_WEEK_LABEL = /(?:current\s*week|currentweek)/i;
+
 export function parseCodexStatus(output) {
   const fiveHourPercent = findPercent(output, [/5h[^0-9]*(\d+(?:\.\d+)?)\s*%/i, /(\d+(?:\.\d+)?)\s*%[^.\n]*(?:5h|five)/i]);
   const weeklyPercent = findPercent(output, [/weekly[^0-9]*(\d+(?:\.\d+)?)\s*%/i, /week[^0-9]*(\d+(?:\.\d+)?)\s*%/i]);
@@ -21,9 +24,25 @@ export function parseCodexStatus(output) {
 }
 
 export function parseClaudeUsage(output) {
+  const sessionUsed = findSectionPercent(output, CLAUDE_SESSION_LABEL);
+  const weeklyUsed = findSectionPercent(output, CLAUDE_WEEK_LABEL);
   const remaining = findNumber(output, [/remaining(?:\s+requests)?[^0-9]*(\d+)/i, /(\d+)\s*(?:requests?\s*)?remaining/i]);
   const total = findNumber(output, [/total(?:\s+requests)?[^0-9]*(\d+)/i, /(?:of|\/)\s*(\d+)\s*requests?/i]);
-  const reset = findReset(output);
+  const reset = findSectionReset(output, CLAUDE_SESSION_LABEL);
+  const weeklyReset = findSectionReset(output, CLAUDE_WEEK_LABEL);
+
+  if (sessionUsed !== null) {
+    return {
+      primary: {
+        percent_left: 100 - sessionUsed,
+        reset
+      },
+      weekly: weeklyUsed === null ? undefined : {
+        percent_left: 100 - weeklyUsed,
+        reset: weeklyReset
+      }
+    };
+  }
 
   if (remaining === null || total === null || total <= 0) {
     return null;
@@ -60,6 +79,31 @@ function findNumber(output, patterns) {
   return null;
 }
 
+function findSectionPercent(output, labelPattern) {
+  const normalized = output.replace(/\r/g, " ");
+  const match = normalized.match(new RegExp(`${labelPattern.source}[\\s\\S]{0,200}?(\\d+(?:\\.\\d+)?)%\\s*used`, "i"));
+  if (!match) {
+    return null;
+  }
+
+  const value = Number(match[1]);
+  if (!Number.isFinite(value)) {
+    return null;
+  }
+
+  return Math.min(100, Math.max(0, value));
+}
+
+function findSectionReset(output, labelPattern) {
+  const normalized = output.replace(/\r/g, " ");
+  const match = normalized.match(new RegExp(`${labelPattern.source}[\\s\\S]{0,260}?Resets\\s*([^\\n\\r]+?)(?=Current\\s*(?:session|week)|Currentsession|Currentweek|Refreshing|Esc\\s+to\\s+cancel|$)`, "i"));
+  if (!match) {
+    return findReset(output);
+  }
+
+  return cleanClaudeReset(match[1]);
+}
+
 function findReset(output) {
   const resetMatch = output.match(/reset(?:s|ting)?(?:\s+at|\s+in|:)?\s*([^\n\r]+)/i);
   if (!resetMatch) {
@@ -81,7 +125,18 @@ function findLineReset(output, labelPattern) {
 
 function cleanReset(value) {
   return value
-    .replace(/[)\]|│]+$/g, "")
-    .replace(/\s*[)\]|│]+\s*$/g, "")
+    .replace(/[)\]|\u2502]+$/g, "")
+    .replace(/\s*[)\]|\u2502]+\s*$/g, "")
+    .trim();
+}
+
+function cleanClaudeReset(value) {
+  if (!value) {
+    return "unknown";
+  }
+
+  return value
+    .replace(/\s+(?:Current\s+(?:session|week)|Refreshing|Esc\s+to\s+cancel).*$/i, "")
+    .replace(/\s+/g, " ")
     .trim();
 }

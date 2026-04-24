@@ -65,6 +65,7 @@ function createShell(text: Messages, isRefreshing: boolean): HTMLElement {
     <span data-tauri-drag-region="">${escapeHtml(text.appTitle)}</span>
     <div class="window-actions">
       <span class="refresh-indicator${isRefreshing ? " refresh-indicator--active" : ""}" title="${escapeHtml(text.detecting)}" aria-hidden="true"></span>
+      <button class="window-info" type="button" aria-label="${escapeHtml(text.about)}" title="${escapeHtml(text.developedBy)}">i</button>
       <button class="window-hide" type="button" aria-label="${escapeHtml(text.hideToTray)}">_</button>
       <button class="window-close" type="button" aria-label="${escapeHtml(text.close)}">x</button>
     </div>
@@ -135,13 +136,13 @@ function renderLimitRow(label: string, rawPercent: number, reset: string, text: 
   return `
     <div class="limit-row">
       <div class="limit-row__meta">
-        <span>${escapeHtml(label)}</span>
+        <span class="limit-row__label">${escapeHtml(label)}</span>
+        <span class="limit-row__reset">${escapeHtml(text.reset)} ${escapeHtml(reset)}</span>
         <strong style="color: ${color}">${Math.round(percent)}%</strong>
       </div>
       <div class="meter" aria-label="${Math.round(percent)} percent remaining">
         <span style="width: ${percent}%; background: ${color}"></span>
       </div>
-      <div class="provider__reset">${escapeHtml(text.reset)} ${escapeHtml(reset)}</div>
     </div>
   `;
 }

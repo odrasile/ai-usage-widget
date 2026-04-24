@@ -13,10 +13,10 @@
     "windows": [
       {
         "title": "AI Usage Widget",
-        "width": 280,
-        "height": 260,
-        "minWidth": 260,
-        "minHeight": 220,
+        "width": 364,
+        "height": 312,
+        "minWidth": 338,
+        "minHeight": 264,
         "resizable": false,
         "decorations": false,
         "transparent": true,

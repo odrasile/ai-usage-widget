@@ -67,7 +67,8 @@ body {
 }
 
 .window-close,
-.window-hide {
+.window-hide,
+.window-info {
   display: inline-grid;
   width: 22px;
   height: 22px;
@@ -83,6 +84,11 @@ body {
 
 .window-hide:hover {
   background: rgba(98, 184, 255, 0.22);
+  color: #ffffff;
+}
+
+.window-info:hover {
+  background: rgba(255, 255, 255, 0.16);
   color: #ffffff;
 }
 
@@ -147,17 +153,33 @@ body {
 }
 
 .limit-row__meta {
-  display: flex;
+  display: grid;
   align-items: center;
-  justify-content: space-between;
+  grid-template-columns: auto 1fr auto;
   gap: 10px;
   color: #c9d1df;
   font-size: 12px;
 }
 
+.limit-row__label {
+  color: #e7edf7;
+  font-weight: 700;
+}
+
+.limit-row__reset {
+  min-width: 0;
+  overflow: hidden;
+  color: #b4bece;
+  text-align: center;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
 .limit-row__meta strong {
-  color: #9cd7ff;
+  min-width: 42px;
+  text-align: right;
   font-size: 13px;
+  font-weight: 800;
 }
 
 .meter {
@@ -176,12 +198,6 @@ body {
 
 .meter--empty span {
   background: transparent;
-}
-
-.provider__reset {
-  min-height: 16px;
-  color: #b4bece;
-  font-size: 12px;
 }
 
 .empty {
