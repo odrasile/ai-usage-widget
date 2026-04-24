@@ -4,6 +4,7 @@ export type ProviderUsage = {
   provider: ProviderName;
   available: boolean;
   status?: string;
+  stale?: boolean;
   usage: {
     primary: {
       percent_left: number;

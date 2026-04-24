@@ -30,6 +30,59 @@ body {
   padding: 10px;
 }
 
+#app.visual-mode--linux-fallback {
+  background: rgb(9, 12, 18);
+}
+
+.probe {
+  display: flex;
+  width: 100%;
+  min-height: 100%;
+  align-items: center;
+  justify-content: center;
+}
+
+.probe--clear {
+  background: transparent;
+}
+
+.probe__label {
+  padding: 6px 10px;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.12);
+  color: rgba(255, 255, 255, 0.92);
+  font-size: 12px;
+}
+
+.probe__panel {
+  display: grid;
+  gap: 4px;
+  min-width: 180px;
+  padding: 16px 18px;
+  border-radius: 14px;
+  color: #f5f7fb;
+}
+
+.probe__panel strong {
+  font-size: 16px;
+}
+
+.probe__panel span {
+  color: rgba(245, 247, 251, 0.76);
+  font-size: 12px;
+}
+
+.probe--panel .probe__panel {
+  background: rgba(18, 24, 33, 0.38);
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  box-shadow: 0 14px 38px rgba(0, 0, 0, 0.32);
+}
+
+.probe--solid .probe__panel {
+  background: rgb(190, 48, 48);
+  border: 1px solid rgba(255, 255, 255, 0.22);
+}
+
 .widget {
   position: relative;
   display: flex;
@@ -43,6 +96,11 @@ body {
   box-shadow: 0 14px 38px rgba(0, 0, 0, 0.32);
   -webkit-backdrop-filter: none;
   backdrop-filter: none;
+}
+
+.visual-mode--linux-fallback .widget {
+  background: rgba(18, 24, 33, 0.96);
+  border-color: rgba(255, 255, 255, 0.1);
 }
 
 .widget__header,
@@ -152,6 +210,10 @@ body {
   gap: 9px;
 }
 
+.provider--stale {
+  opacity: 0.92;
+}
+
 .provider__top {
   justify-content: space-between;
   gap: 12px;
@@ -170,6 +232,18 @@ body {
   flex: 0 0 auto;
   color: #9cd7ff;
   font-weight: 800;
+}
+
+.provider__badge {
+  display: inline-grid;
+  width: 18px;
+  height: 18px;
+  place-items: center;
+  border-radius: 999px;
+  background: rgba(242, 163, 58, 0.2);
+  color: #f2a33a;
+  font-size: 12px;
+  font-weight: 900;
 }
 
 .limit-row {
@@ -223,6 +297,37 @@ body {
 
 .meter--empty span {
   background: transparent;
+}
+
+.provider--stale .meter {
+  background: rgba(255, 255, 255, 0.08);
+}
+
+.provider--stale .limit-row__label,
+.provider--stale .limit-row__reset,
+.provider--stale .limit-row__meta strong,
+.provider--stale .provider__top strong {
+  color: #a7adb8;
+}
+
+.provider__warning {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+  color: #b8bec9;
+  font-size: 11px;
+}
+
+.provider__warning-icon {
+  display: inline-grid;
+  width: 16px;
+  height: 16px;
+  place-items: center;
+  border-radius: 999px;
+  background: rgba(242, 163, 58, 0.2);
+  color: #f2a33a;
+  font-size: 11px;
+  font-weight: 900;
 }
 
 .empty {

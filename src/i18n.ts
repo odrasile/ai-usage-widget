@@ -14,6 +14,7 @@ export type Messages = {
   updated: string;
   reset: string;
   unavailable: string;
+  usingCachedData: string;
   unableToRefresh: string;
   limit5h: string;
   weekly: string;
@@ -34,6 +35,7 @@ const messages: Record<Locale, Messages> = {
     updated: "Updated",
     reset: "Reset",
     unavailable: "Usage unavailable",
+    usingCachedData: "Showing last known usage",
     unableToRefresh: "Unable to refresh usage",
     limit5h: "5h",
     weekly: "Weekly"
@@ -52,6 +54,7 @@ const messages: Record<Locale, Messages> = {
     updated: "Actualizado",
     reset: "Reinicio",
     unavailable: "Uso no disponible",
+    usingCachedData: "Mostrando ultimo uso conocido",
     unableToRefresh: "No se pudo actualizar el uso",
     limit5h: "5 h",
     weekly: "Semanal"

@@ -2,11 +2,14 @@ import "./styles.css";
 import { LogicalSize } from "@tauri-apps/api/dpi";
 import { getCurrentWindow } from "@tauri-apps/api/window";
 import { detectLocale, getMessages } from "./i18n";
-import { renderError, renderLoading, renderSnapshot } from "./renderer";
+import { renderError, renderLoading, renderSnapshot, renderTransparencyProbe } from "./renderer";
 import { Scheduler } from "./scheduler";
 import { getUsageSnapshot } from "./tauri";
-import type { UsageSnapshot } from "./types";
+import type { ProviderUsage, UsageSnapshot } from "./types";
 
+const transparencyProbe = ((import.meta as ImportMeta & {
+  env?: Record<string, string | undefined>;
+}).env?.VITE_TRANSPARENCY_PROBE ?? "");
 const root = document.querySelector<HTMLElement>("#app");
 
 if (!root) {
@@ -18,39 +21,48 @@ const appRoot = root;
 const text = getMessages(detectLocale());
 let latestSnapshot: UsageSnapshot | null = null;
 let resizeFrame = 0;
+let scheduler: Scheduler | null = null;
+const visualMode = detectVisualMode();
 
-renderLoading(appRoot, text);
-queueWindowSync();
-void ensureTransparentWindow();
+if (transparencyProbe) {
+  renderTransparencyProbe(appRoot, transparencyProbe);
+  queueWindowSync();
+  void ensureTransparentWindow();
+} else {
+  appRoot.classList.add(`visual-mode--${visualMode}`);
+  renderLoading(appRoot, text);
+  queueWindowSync();
+  void applyWindowVisualMode();
 
-const scheduler = new Scheduler(
-  getUsageSnapshot,
-  (snapshot) => {
-    latestSnapshot = snapshot;
-    renderSnapshot(appRoot, snapshot, text, refreshNow);
-    queueWindowSync();
-  },
-  (message) => {
-    renderError(appRoot, message || text.unableToRefresh, text);
-    queueWindowSync();
-  },
-  () => {
-    if (latestSnapshot) {
-      renderSnapshot(appRoot, latestSnapshot, text, refreshNow, true);
-    } else {
-      renderLoading(appRoot, text);
+  scheduler = new Scheduler(
+    getUsageSnapshot,
+    (snapshot) => {
+      const mergedSnapshot = mergeSnapshotWithPrevious(snapshot, latestSnapshot);
+      latestSnapshot = mergedSnapshot;
+      renderSnapshot(appRoot, mergedSnapshot, text, refreshNow);
+      queueWindowSync();
+    },
+    (message) => {
+      renderError(appRoot, message || text.unableToRefresh, text);
+      queueWindowSync();
+    },
+    () => {
+      if (latestSnapshot) {
+        renderSnapshot(appRoot, latestSnapshot, text, refreshNow, true);
+      } else {
+        renderLoading(appRoot, text);
+      }
+
+      queueWindowSync();
     }
+  );
 
-    queueWindowSync();
-  }
-);
-
-scheduler.start();
-
-window.addEventListener("beforeunload", () => scheduler.stop());
+  scheduler.start();
+  window.addEventListener("beforeunload", () => scheduler?.stop());
+}
 
 function refreshNow(): void {
-  scheduler.refresh();
+  scheduler?.refresh();
 }
 
 function queueWindowSync(): void {
@@ -76,6 +88,26 @@ async function ensureTransparentWindow(): Promise<void> {
   } catch (error) {
     console.error("Unable to force transparent window background", error);
   }
+}
+
+async function applyWindowVisualMode(): Promise<void> {
+  if (visualMode === "linux-fallback") {
+    console.info("[widget] visual mode: linux-fallback");
+    try {
+      await getCurrentWindow().setBackgroundColor({
+        red: 9,
+        green: 12,
+        blue: 18,
+        alpha: 255
+      });
+      return;
+    } catch (error) {
+      console.error("Unable to apply linux fallback background", error);
+    }
+  }
+
+  console.info("[widget] visual mode: transparent");
+  await ensureTransparentWindow();
 }
 
 async function syncWindowLayout(): Promise<void> {
@@ -137,4 +169,42 @@ function addWidthHeadroom(value: number): number {
 
 function addHeightHeadroom(value: number): number {
   return Math.ceil(value + 42);
+}
+
+function detectVisualMode(): "transparent" | "linux-fallback" {
+  const userAgent = navigator.userAgent.toLowerCase();
+  return userAgent.includes("linux") ? "linux-fallback" : "transparent";
+}
+
+function mergeSnapshotWithPrevious(snapshot: UsageSnapshot, previous: UsageSnapshot | null): UsageSnapshot {
+  if (!previous) {
+    return snapshot;
+  }
+
+  const previousProviders = new Map(previous.providers.map((provider) => [provider.provider, provider]));
+
+  return {
+    ...snapshot,
+    providers: snapshot.providers.map((provider) => {
+      return mergeProviderWithPrevious(provider, previousProviders.get(provider.provider), text.usingCachedData);
+    })
+  };
+}
+
+function mergeProviderWithPrevious(
+  provider: ProviderUsage,
+  previousProvider: ProviderUsage | undefined,
+  fallbackLabel: string
+): ProviderUsage {
+  if (provider.available || provider.usage || !previousProvider?.usage) {
+    return provider;
+  }
+
+  const status = provider.status ? `${fallbackLabel}. ${provider.status}` : fallbackLabel;
+  return {
+    ...previousProvider,
+    available: false,
+    stale: true,
+    status
+  };
 }

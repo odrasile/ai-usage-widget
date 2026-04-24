@@ -12,6 +12,7 @@
   "app": {
     "windows": [
       {
+        "create": false,
         "title": "AI Usage Widget",
         "width": 388,
         "height": 188,
@@ -20,6 +21,7 @@
         "resizable": true,
         "decorations": false,
         "transparent": true,
+        "visible": false,
         "alwaysOnTop": true,
         "skipTaskbar": true,
         "center": true

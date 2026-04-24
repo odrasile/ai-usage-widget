@@ -261,6 +261,52 @@ Contenido por provider:
 - porcentaje restante
 - tiempo de reset
 
+---
+
+## Transparencia y Composicion en Linux
+
+### Explicacion del problema
+
+- En Linux, la ventana del widget no depende solo del frontend. Tauri usa el webview nativo del sistema y en esta plataforma eso significa WebKitGTK.
+- El comportamiento visual no es equivalente a Windows ni a macOS. Transparencia, blur y otros efectos dependen del stack completo: Tauri, WebKitGTK, GTK y el entorno grafico.
+- En X11, la transparencia real requiere compositor activo. Sin compositor, una ventana con alpha puede renderizarse con fondo negro.
+- En Wayland la situacion puede ser mejor, pero no debe asumirse como equivalente a Windows ni como garantia de soporte completo.
+- Incluso con compositor activo, la transparencia en Tauri + WebKitGTK puede seguir siendo inconsistente o limitada segun version, distribucion y window manager.
+
+### Diagnostico tecnico adoptado en el proyecto
+
+- Se ha verificado el comportamiento en Linux/X11 con Tauri y WebKitGTK usando ventanas de prueba minimales.
+- Se ha comprobado que el problema de fondo negro puede persistir aunque la UI HTML sea correcta y aunque el codigo solicite transparencia de ventana.
+- Cuando esto ocurre, el problema debe tratarse como limitacion del stack nativo de composicion y no como fallo del layout del widget.
+- El proyecto no debe asumir que una ventana marcada como `transparent: true` vaya a mostrarse realmente transparente en Linux.
+
+### Decision de arquitectura
+
+- No perseguir transparencia real en Linux/X11 como requisito funcional del producto.
+- No introducir workarounds fragiles dependientes de compositor, desktop environment o version concreta de WebKitGTK.
+- No bloquear trabajo de producto en iteraciones visuales cuyo exito dependa del entorno grafico del usuario.
+- Priorizar estabilidad visual, legibilidad y consistencia del widget sobre efectos avanzados.
+
+### Estrategia de fallback
+
+- El fallback oficial en Linux debe ser un panel oscuro elegante, visualmente estable y sin depender de transparencia real.
+- El widget debe seguir usando borde redondeado, sombra y contraste suficiente para mantener aspecto de overlay, aunque el fondo no sea realmente transparente.
+- El modo visual debe funcionar correctamente tanto con compositor como sin compositor.
+- La UI debe seguir siendo legible y usable aunque la transparencia nativa no este disponible.
+
+### Criterios de aceptacion
+
+- La app funciona correctamente en Linux aunque no haya transparencia real.
+- No hay glitches visuales causados por depender de compositor para el funcionamiento normal.
+- La UI no depende de transparencia real para mostrar providers, barras, estados ni controles.
+- El modo visual aplicado debe poder registrarse o exponerse en logs de diagnostico cuando sea necesario.
+
+### Consideraciones futuras
+
+- Evaluar mas adelante el comportamiento en Wayland como via preferente para Linux si el soporte real resulta mas consistente.
+- Revisar esta decision cuando WebKitGTK o Tauri mejoren soporte de transparencia de forma verificable y reproducible.
+- Si en el futuro se considera necesario soporte visual avanzado en Linux, evaluar alternativas de stack o estrategia de ventana, pero no implementarlas hasta tener evidencia tecnica suficiente.
+
 Estados:
 
 - inicializando/detectando CLIs

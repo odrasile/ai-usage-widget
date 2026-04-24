@@ -62,6 +62,31 @@ export function renderError(root: HTMLElement, message: string, text: Messages):
   root.appendChild(shell);
 }
 
+export function renderTransparencyProbe(root: HTMLElement, mode: string): void {
+  root.innerHTML = "";
+
+  if (mode === "clear") {
+    const probe = document.createElement("section");
+    probe.className = "probe probe--clear";
+    probe.innerHTML = `<div class="probe__label">clear</div>`;
+    root.appendChild(probe);
+    return;
+  }
+
+  if (mode === "solid") {
+    const probe = document.createElement("section");
+    probe.className = "probe probe--solid";
+    probe.innerHTML = `<div class="probe__panel"><strong>solid</strong><span>Opaque control</span></div>`;
+    root.appendChild(probe);
+    return;
+  }
+
+  const probe = document.createElement("section");
+  probe.className = "probe probe--panel";
+  probe.innerHTML = `<div class="probe__panel"><strong>panel</strong><span>Translucent panel</span></div>`;
+  root.appendChild(probe);
+}
+
 function createShell(text: Messages, onRefresh: () => void, isRefreshing: boolean): HTMLElement {
   const shell = document.createElement("section");
   shell.className = "widget";
@@ -127,9 +152,9 @@ function createBody(): HTMLElement {
 
 function renderProvider(provider: ProviderUsage, text: Messages): HTMLElement {
   const item = document.createElement("article");
-  item.className = "provider";
+  item.className = `provider${provider.stale ? " provider--stale" : ""}`;
 
-  if (!provider.available || !provider.usage) {
+  if (!provider.usage) {
     const status = provider.status ?? text.unavailable;
     item.innerHTML = `
       <div class="provider__top">
@@ -144,25 +169,29 @@ function renderProvider(provider: ProviderUsage, text: Messages): HTMLElement {
     return item;
   }
 
-  const primary = renderLimitRow(text.limit5h, provider.usage.primary.percent_left, provider.usage.primary.reset, text);
+  const primary = renderLimitRow(text.limit5h, provider.usage.primary.percent_left, provider.usage.primary.reset, text, provider.stale);
   const weekly = provider.usage.weekly
-    ? renderLimitRow(text.weekly, provider.usage.weekly.percent_left, provider.usage.weekly.reset, text)
+    ? renderLimitRow(text.weekly, provider.usage.weekly.percent_left, provider.usage.weekly.reset, text, provider.stale)
+    : "";
+  const warning = provider.stale && provider.status
+    ? `<div class="provider__warning" title="${escapeHtml(provider.status)}"><span class="provider__warning-icon">!</span><span>${escapeHtml(provider.status)}</span></div>`
     : "";
 
   item.innerHTML = `
     <div class="provider__top">
-      <strong>${providerLabels[provider.provider] ?? provider.provider}</strong>
+      <strong>${providerLabels[provider.provider] ?? provider.provider}</strong>${provider.stale ? '<span class="provider__badge" aria-hidden="true">!</span>' : ""}
     </div>
     ${primary}
     ${weekly}
+    ${warning}
   `;
 
   return item;
 }
 
-function renderLimitRow(label: string, rawPercent: number, reset: string, text: Messages): string {
+function renderLimitRow(label: string, rawPercent: number, reset: string, text: Messages, stale = false): string {
   const percent = clampPercent(rawPercent);
-  const color = usageColor(percent);
+  const color = stale ? "rgb(126, 132, 144)" : usageColor(percent);
   const localizedReset = formatResetText(reset, text.locale);
 
   return `

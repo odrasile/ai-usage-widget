@@ -3,9 +3,10 @@
 use std::path::{Path, PathBuf};
 use std::process::Command;
 use tauri::{
+    webview::PageLoadEvent,
     menu::{Menu, MenuItem},
     tray::{MouseButton, MouseButtonState, TrayIconBuilder, TrayIconEvent},
-    AppHandle, Manager,
+    AppHandle, Manager, WebviewWindowBuilder,
 };
 
 #[cfg(windows)]
@@ -121,10 +122,32 @@ fn setup_tray(app: &AppHandle) -> tauri::Result<()> {
     Ok(())
 }
 
+fn create_main_window(app: &AppHandle) -> tauri::Result<()> {
+    let Some(window_config) = app.config().app.windows.first() else {
+        return Ok(());
+    };
+
+    let mut window_config = window_config.clone();
+    window_config.visible = false;
+
+    WebviewWindowBuilder::from_config(app, &window_config)?
+        .on_page_load(|window, payload| {
+            if payload.event() == PageLoadEvent::Finished {
+                let _ = window.set_background_color(Some(tauri::window::Color(0, 0, 0, 0)));
+                let _ = window.show();
+                let _ = window.set_focus();
+            }
+        })
+        .build()?;
+
+    Ok(())
+}
+
 fn main() {
     tauri::Builder::default()
         .setup(|app| {
             setup_tray(app.handle())?;
+            create_main_window(app.handle())?;
             Ok(())
         })
         .invoke_handler(tauri::generate_handler![get_usage_snapshot])

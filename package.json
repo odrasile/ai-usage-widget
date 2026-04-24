@@ -9,6 +9,9 @@
     "tauri": "tauri",
     "tauri:dev": "node scripts/tauri-preflight.mjs && tauri dev",
     "tauri:build": "node scripts/tauri-preflight.mjs && tauri build",
+    "tauri:probe:clear": "node scripts/tauri-preflight.mjs && env VITE_TRANSPARENCY_PROBE=clear tauri dev",
+    "tauri:probe:panel": "node scripts/tauri-preflight.mjs && env VITE_TRANSPARENCY_PROBE=panel tauri dev",
+    "tauri:probe:solid": "node scripts/tauri-preflight.mjs && env VITE_TRANSPARENCY_PROBE=solid tauri dev",
     "test": "node --test backend/*.test.js"
   },
   "dependencies": {

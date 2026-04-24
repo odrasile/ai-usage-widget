@@ -39,7 +39,9 @@ npm install
 npm run tauri dev
 ```
 
-La ventana se abre como widget flotante, sin bordes, transparente y siempre visible.
+La ventana se abre como widget flotante, sin bordes y siempre visible.
+
+En Windows la transparencia del widget es un objetivo razonable. En Linux no debe asumirse transparencia real: Tauri depende de WebKitGTK y el resultado final tambien depende del compositor y del entorno grafico. El fallback soportado en Linux es un panel oscuro estable y legible.
 
 ## Build
 
