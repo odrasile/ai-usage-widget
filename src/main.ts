@@ -26,7 +26,7 @@ const scheduler = new Scheduler(
   getUsageSnapshot,
   (snapshot) => {
     latestSnapshot = snapshot;
-    renderSnapshot(appRoot, snapshot, text);
+    renderSnapshot(appRoot, snapshot, text, refreshNow);
     queueHeightSync();
   },
   (message) => {
@@ -35,7 +35,7 @@ const scheduler = new Scheduler(
   },
   () => {
     if (latestSnapshot) {
-      renderSnapshot(appRoot, latestSnapshot, text, true);
+      renderSnapshot(appRoot, latestSnapshot, text, refreshNow, true);
     } else {
       renderLoading(appRoot, text);
     }
@@ -58,6 +58,10 @@ function queueHeightSync(): void {
       void syncWindowHeight();
     });
   });
+}
+
+function refreshNow(): void {
+  scheduler.refresh();
 }
 
 async function syncWindowHeight(): Promise<void> {

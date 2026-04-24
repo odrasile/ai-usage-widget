@@ -30,6 +30,15 @@ export class Scheduler {
     }
   }
 
+  refresh(): void {
+    if (this.timer !== undefined) {
+      window.clearTimeout(this.timer);
+      this.timer = undefined;
+    }
+
+    void this.tick();
+  }
+
   private async tick(): Promise<void> {
     if (this.running) {
       return;

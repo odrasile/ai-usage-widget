@@ -67,7 +67,8 @@ body {
 
 .window-close,
 .window-hide,
-.window-info {
+.window-info,
+.window-refresh {
   display: inline-grid;
   width: 22px;
   height: 22px;
@@ -88,6 +89,11 @@ body {
 
 .window-info:hover {
   background: rgba(255, 255, 255, 0.16);
+  color: #ffffff;
+}
+
+.window-refresh:hover {
+  background: rgba(79, 201, 120, 0.2);
   color: #ffffff;
 }
 

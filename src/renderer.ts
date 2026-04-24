@@ -7,10 +7,10 @@ const providerLabels: Record<string, string> = {
   claude: "Claude Code"
 };
 
-export function renderSnapshot(root: HTMLElement, snapshot: UsageSnapshot, text: Messages, isRefreshing = false): void {
+export function renderSnapshot(root: HTMLElement, snapshot: UsageSnapshot, text: Messages, onRefresh: () => void, isRefreshing = false): void {
   root.innerHTML = "";
 
-  const shell = createShell(text, isRefreshing);
+  const shell = createShell(text, onRefresh, isRefreshing);
 
   if (snapshot.providers.length === 0) {
     const empty = document.createElement("div");
@@ -33,7 +33,7 @@ export function renderSnapshot(root: HTMLElement, snapshot: UsageSnapshot, text:
 
 export function renderLoading(root: HTMLElement, text: Messages): void {
   root.innerHTML = "";
-  const shell = createShell(text, true);
+  const shell = createShell(text, () => {}, true);
   const loading = document.createElement("div");
   loading.className = "empty state-message";
   loading.innerHTML = `
@@ -46,7 +46,7 @@ export function renderLoading(root: HTMLElement, text: Messages): void {
 
 export function renderError(root: HTMLElement, message: string, text: Messages): void {
   root.innerHTML = "";
-  const shell = createShell(text, false);
+  const shell = createShell(text, () => {}, false);
   const error = document.createElement("p");
   error.className = "empty";
   error.textContent = message;
@@ -54,7 +54,7 @@ export function renderError(root: HTMLElement, message: string, text: Messages):
   root.appendChild(shell);
 }
 
-function createShell(text: Messages, isRefreshing: boolean): HTMLElement {
+function createShell(text: Messages, onRefresh: () => void, isRefreshing: boolean): HTMLElement {
   const shell = document.createElement("section");
   shell.className = "widget";
 
@@ -66,6 +66,7 @@ function createShell(text: Messages, isRefreshing: boolean): HTMLElement {
     <div class="window-actions">
       <span class="refresh-indicator${isRefreshing ? " refresh-indicator--active" : ""}" title="${escapeHtml(text.detecting)}" aria-hidden="true"></span>
       <button class="window-info" type="button" aria-label="${escapeHtml(text.about)}" title="${escapeHtml(text.developedBy)}">i</button>
+      <button class="window-refresh" type="button" aria-label="${escapeHtml(text.refresh)}" title="${escapeHtml(text.refresh)}">&#8635;</button>
       <button class="window-hide" type="button" aria-label="${escapeHtml(text.hideToTray)}">_</button>
       <button class="window-close" type="button" aria-label="${escapeHtml(text.close)}">x</button>
     </div>
@@ -83,6 +84,9 @@ function createShell(text: Messages, isRefreshing: boolean): HTMLElement {
   });
   header.querySelector(".window-hide")?.addEventListener("click", () => {
     void getCurrentWindow().hide();
+  });
+  header.querySelector(".window-refresh")?.addEventListener("click", () => {
+    onRefresh();
   });
   return shell;
 }
