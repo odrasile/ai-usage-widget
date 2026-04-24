@@ -2,6 +2,8 @@ import type { ProviderUsage, UsageSnapshot } from "./types";
 import { getCurrentWindow } from "@tauri-apps/api/window";
 import type { Messages } from "./i18n";
 
+type ResizeDirection = "East" | "North" | "NorthEast" | "NorthWest" | "South" | "SouthEast" | "SouthWest" | "West";
+
 const providerLabels: Record<string, string> = {
   codex: "Codex",
   claude: "Claude Code"
@@ -11,6 +13,7 @@ export function renderSnapshot(root: HTMLElement, snapshot: UsageSnapshot, text:
   root.innerHTML = "";
 
   const shell = createShell(text, onRefresh, isRefreshing);
+  const body = createBody();
 
   if (snapshot.providers.length === 0) {
     const empty = document.createElement("div");
@@ -19,14 +22,15 @@ export function renderSnapshot(root: HTMLElement, snapshot: UsageSnapshot, text:
       <span class="state-icon" aria-hidden="true"></span>
       <span>${escapeHtml(text.noProviders)}</span>
     `;
-    shell.appendChild(empty);
+    body.appendChild(empty);
   } else {
     const list = document.createElement("div");
     list.className = "provider-list";
     snapshot.providers.forEach((provider) => list.appendChild(renderProvider(provider, text)));
-    shell.appendChild(list);
+    body.appendChild(list);
   }
 
+  shell.appendChild(body);
   appendFooter(shell, `${text.updated} ${formatTime(snapshot.updated_at)}`);
   root.appendChild(shell);
 }
@@ -34,23 +38,27 @@ export function renderSnapshot(root: HTMLElement, snapshot: UsageSnapshot, text:
 export function renderLoading(root: HTMLElement, text: Messages): void {
   root.innerHTML = "";
   const shell = createShell(text, () => {}, true);
+  const body = createBody();
   const loading = document.createElement("div");
   loading.className = "empty state-message";
   loading.innerHTML = `
     <span class="state-icon state-icon--spin" aria-hidden="true"></span>
     <span>${escapeHtml(text.detecting)}</span>
   `;
-  shell.appendChild(loading);
+  body.appendChild(loading);
+  shell.appendChild(body);
   root.appendChild(shell);
 }
 
 export function renderError(root: HTMLElement, message: string, text: Messages): void {
   root.innerHTML = "";
   const shell = createShell(text, () => {}, false);
+  const body = createBody();
   const error = document.createElement("p");
   error.className = "empty";
   error.textContent = message;
-  shell.appendChild(error);
+  body.appendChild(error);
+  shell.appendChild(body);
   root.appendChild(shell);
 }
 
@@ -88,6 +96,19 @@ function createShell(text: Messages, onRefresh: () => void, isRefreshing: boolea
   header.querySelector(".window-refresh")?.addEventListener("click", () => {
     onRefresh();
   });
+
+  const resizeHandle = document.createElement("button");
+  resizeHandle.className = "widget__resize";
+  resizeHandle.type = "button";
+  resizeHandle.setAttribute("aria-label", text.resize);
+  resizeHandle.setAttribute("title", text.resize);
+  resizeHandle.innerHTML = "<span></span>";
+  resizeHandle.addEventListener("pointerdown", (event) => {
+    event.preventDefault();
+    void startResize("SouthEast");
+  });
+  shell.appendChild(resizeHandle);
+
   return shell;
 }
 
@@ -96,6 +117,12 @@ function appendFooter(shell: HTMLElement, value: string): void {
   footer.className = "widget__footer";
   footer.textContent = value;
   shell.appendChild(footer);
+}
+
+function createBody(): HTMLElement {
+  const body = document.createElement("div");
+  body.className = "widget__body";
+  return body;
 }
 
 function renderProvider(provider: ProviderUsage, text: Messages): HTMLElement {
@@ -136,12 +163,13 @@ function renderProvider(provider: ProviderUsage, text: Messages): HTMLElement {
 function renderLimitRow(label: string, rawPercent: number, reset: string, text: Messages): string {
   const percent = clampPercent(rawPercent);
   const color = usageColor(percent);
+  const localizedReset = formatResetText(reset, text.locale);
 
   return `
     <div class="limit-row">
       <div class="limit-row__meta">
         <span class="limit-row__label">${escapeHtml(label)}</span>
-        <span class="limit-row__reset">${escapeHtml(text.reset)} ${escapeHtml(reset)}</span>
+        <span class="limit-row__reset">${escapeHtml(text.reset)} ${escapeHtml(localizedReset)}</span>
         <strong style="color: ${color}">${Math.round(percent)}%</strong>
       </div>
       <div class="meter" aria-label="${Math.round(percent)} percent remaining">
@@ -212,4 +240,113 @@ function escapeHtml(value: string): string {
     };
     return map[char];
   });
+}
+
+async function startResize(direction: ResizeDirection): Promise<void> {
+  try {
+    await getCurrentWindow().startResizeDragging(direction);
+  } catch (error) {
+    console.error("Unable to start resize drag", error);
+  }
+}
+
+function formatResetText(value: string, locale: "en" | "es"): string {
+  const normalized = value.replace(/\s+/g, " ").trim();
+
+  return formatWithZone(normalized, locale)
+    ?? formatTimeAndMonthDay(normalized, locale)
+    ?? formatTimeOnly(normalized, locale)
+    ?? normalized;
+}
+
+function formatWithZone(value: string, locale: "en" | "es"): string | null {
+  const match = value.match(/^([A-Za-z]{3})\s*(\d{1,2}),\s*(\d{1,2}:\d{2})\s*(am|pm)?\s*\(([^)]+)\)$/i)
+    ?? value.match(/^(\d{1,2}:\d{2})\s*(am|pm)?\s*\(([^)]+)\)$/i);
+
+  if (!match) {
+    return null;
+  }
+
+  if (match.length === 6) {
+    const [, month, day, time, meridiem, zone] = match;
+    const formattedDate = formatMonthDay(month, Number(day), locale);
+    const formattedTime = formatClock(time, meridiem ?? null, locale);
+    return formattedDate && formattedTime ? `${formattedDate}, ${formattedTime} (${zone})` : value;
+  }
+
+  const [, time, meridiem, zone] = match;
+  const formattedTime = formatClock(time, meridiem ?? null, locale);
+  return formattedTime ? `${formattedTime} (${zone})` : value;
+}
+
+function formatTimeAndMonthDay(value: string, locale: "en" | "es"): string | null {
+  const match = value.match(/^(\d{1,2}:\d{2})\s+on\s+(\d{1,2})\s+([A-Za-z]{3})$/i);
+  if (!match) {
+    return null;
+  }
+
+  const [, time, day, month] = match;
+  const formattedTime = formatClock(time, null, locale);
+  const formattedDate = formatMonthDay(month, Number(day), locale);
+  return formattedTime && formattedDate ? `${formattedTime}, ${formattedDate}` : value;
+}
+
+function formatTimeOnly(value: string, locale: "en" | "es"): string | null {
+  const match = value.match(/^(\d{1,2}:\d{2})$/);
+  if (!match) {
+    return null;
+  }
+
+  return formatClock(match[1], null, locale);
+}
+
+function formatClock(time: string, meridiem: string | null, locale: "en" | "es"): string | null {
+  const match = time.match(/^(\d{1,2}):(\d{2})$/);
+  if (!match) {
+    return null;
+  }
+
+  let hours = Number(match[1]);
+  const minutes = Number(match[2]);
+  if (!Number.isFinite(hours) || !Number.isFinite(minutes)) {
+    return null;
+  }
+
+  if (meridiem) {
+    const lower = meridiem.toLowerCase();
+    if (lower === "pm" && hours < 12) {
+      hours += 12;
+    } else if (lower === "am" && hours === 12) {
+      hours = 0;
+    }
+  }
+
+  const date = new Date(Date.UTC(2026, 0, 1, hours, minutes));
+  return new Intl.DateTimeFormat(localeForIntl(locale), {
+    hour: "numeric",
+    minute: "2-digit"
+  }).format(date);
+}
+
+function formatMonthDay(month: string, day: number, locale: "en" | "es"): string | null {
+  const monthIndex = monthToIndex(month);
+  if (monthIndex === null || !Number.isFinite(day)) {
+    return null;
+  }
+
+  const date = new Date(Date.UTC(2026, monthIndex, day));
+  return new Intl.DateTimeFormat(localeForIntl(locale), {
+    month: "short",
+    day: "numeric"
+  }).format(date);
+}
+
+function monthToIndex(month: string): number | null {
+  const months = ["jan", "feb", "mar", "apr", "may", "jun", "jul", "aug", "sep", "oct", "nov", "dec"];
+  const index = months.indexOf(month.toLowerCase());
+  return index === -1 ? null : index;
+}
+
+function localeForIntl(locale: "en" | "es"): string {
+  return locale === "es" ? "es-ES" : "en-US";
 }

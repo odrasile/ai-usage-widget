@@ -7,9 +7,9 @@
     "dev": "vite --host 127.0.0.1",
     "build": "tsc && vite build",
     "tauri": "tauri",
-    "tauri:dev": "tauri dev",
-    "tauri:build": "tauri build",
-    "test": "node --test backend/**/*.test.js"
+    "tauri:dev": "node scripts/tauri-preflight.mjs && tauri dev",
+    "tauri:build": "node scripts/tauri-preflight.mjs && tauri build",
+    "test": "node --test backend/*.test.js"
   },
   "dependencies": {
     "@tauri-apps/api": "^2.0.0",

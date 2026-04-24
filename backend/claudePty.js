@@ -3,6 +3,7 @@ import { mkdirSync, writeFileSync } from "node:fs";
 import os from "node:os";
 import path from "node:path";
 import { getPtyShellLaunch } from "./platform.js";
+import { parseClaudeUsage } from "./parser.js";
 
 const ANSI_PATTERN = /\x1b\[[0-9;?]*[A-Za-z]/g;
 const CONPTY_NOISE_PATTERN = /C:\\.*node-pty\\lib\\conpty_console_list_agent\.js[\s\S]*$/i;
@@ -148,9 +149,7 @@ function isReadyForUsageCommand(output) {
 
 function hasClaudeUsage(output) {
   const cleaned = cleanTerminalOutput(output);
-  return /Current\s*session|Currentsession/i.test(cleaned)
-    && /Current\s*week|Currentweek/i.test(cleaned)
-    && /%\s*used/i.test(cleaned);
+  return parseClaudeUsage(cleaned) !== null;
 }
 
 function cleanTerminalOutput(value) {

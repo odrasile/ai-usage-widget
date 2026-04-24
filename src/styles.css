@@ -26,14 +26,23 @@ body {
   user-select: none;
 }
 
+#app {
+  padding: 10px;
+}
+
 .widget {
-  width: 100vw;
-  padding: 14px;
-  background: rgba(19, 23, 31, 0.82);
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  width: 100%;
+  min-height: 100%;
+  padding: 14px 14px 28px;
+  background: rgba(18, 24, 33, 0.38);
   border: 1px solid rgba(255, 255, 255, 0.12);
-  border-radius: 8px;
+  border-radius: 12px;
   box-shadow: 0 14px 38px rgba(0, 0, 0, 0.32);
-  backdrop-filter: blur(18px);
+  -webkit-backdrop-filter: none;
+  backdrop-filter: none;
 }
 
 .widget__header,
@@ -42,6 +51,13 @@ body {
 .provider__reset {
   display: flex;
   align-items: center;
+}
+
+.widget__body {
+  display: flex;
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow: visible;
 }
 
 .widget__header {
@@ -123,8 +139,12 @@ body {
 
 .provider-list {
   display: grid;
+  flex: 1 1 auto;
   gap: 10px;
   margin-top: 13px;
+  min-height: 0;
+  padding-right: 2px;
+  width: 100%;
 }
 
 .provider {
@@ -206,9 +226,10 @@ body {
 }
 
 .empty {
-  margin: 32px 0 24px;
+  margin: auto 0;
   color: #c9d1df;
   text-align: center;
+  width: 100%;
 }
 
 .state-message {
@@ -219,9 +240,65 @@ body {
 }
 
 .widget__footer {
-  margin-top: 13px;
+  margin-top: auto;
+  padding-top: 13px;
   color: #8e99aa;
   font-size: 11px;
+}
+
+.widget__resize {
+  position: absolute;
+  right: 6px;
+  bottom: 6px;
+  display: grid;
+  width: 18px;
+  height: 18px;
+  padding: 0;
+  place-items: center;
+  border: 0;
+  background: transparent;
+  cursor: nwse-resize;
+}
+
+.widget__resize span {
+  width: 10px;
+  height: 10px;
+  border-right: 2px solid rgba(216, 222, 234, 0.65);
+  border-bottom: 2px solid rgba(216, 222, 234, 0.65);
+  border-bottom-right-radius: 2px;
+}
+
+.widget__resize:hover span {
+  border-color: rgba(255, 255, 255, 0.95);
+}
+
+@media (max-width: 360px) {
+  #app {
+    padding: 8px;
+  }
+
+  .widget {
+    padding: 12px 12px 26px;
+  }
+
+  .limit-row__meta {
+    grid-template-columns: 1fr auto;
+    gap: 6px 8px;
+  }
+
+  .limit-row__label {
+    grid-column: 1;
+  }
+
+  .limit-row__reset {
+    grid-column: 1 / -1;
+    text-align: left;
+  }
+
+  .limit-row__meta strong {
+    grid-column: 2;
+    grid-row: 1;
+  }
 }
 
 @keyframes spin {

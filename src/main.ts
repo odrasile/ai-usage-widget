@@ -20,18 +20,19 @@ let latestSnapshot: UsageSnapshot | null = null;
 let resizeFrame = 0;
 
 renderLoading(appRoot, text);
-queueHeightSync();
+queueWindowSync();
+void ensureTransparentWindow();
 
 const scheduler = new Scheduler(
   getUsageSnapshot,
   (snapshot) => {
     latestSnapshot = snapshot;
     renderSnapshot(appRoot, snapshot, text, refreshNow);
-    queueHeightSync();
+    queueWindowSync();
   },
   (message) => {
     renderError(appRoot, message || text.unableToRefresh, text);
-    queueHeightSync();
+    queueWindowSync();
   },
   () => {
     if (latestSnapshot) {
@@ -40,7 +41,7 @@ const scheduler = new Scheduler(
       renderLoading(appRoot, text);
     }
 
-    queueHeightSync();
+    queueWindowSync();
   }
 );
 
@@ -48,41 +49,92 @@ scheduler.start();
 
 window.addEventListener("beforeunload", () => scheduler.stop());
 
-function queueHeightSync(): void {
+function refreshNow(): void {
+  scheduler.refresh();
+}
+
+function queueWindowSync(): void {
   if (resizeFrame) {
     window.cancelAnimationFrame(resizeFrame);
   }
 
   resizeFrame = window.requestAnimationFrame(() => {
     resizeFrame = window.requestAnimationFrame(() => {
-      void syncWindowHeight();
+      void syncWindowLayout();
     });
   });
 }
 
-function refreshNow(): void {
-  scheduler.refresh();
+async function ensureTransparentWindow(): Promise<void> {
+  try {
+    await getCurrentWindow().setBackgroundColor({
+      red: 0,
+      green: 0,
+      blue: 0,
+      alpha: 0
+    });
+  } catch (error) {
+    console.error("Unable to force transparent window background", error);
+  }
 }
 
-async function syncWindowHeight(): Promise<void> {
+async function syncWindowLayout(): Promise<void> {
   const shell = appRoot.firstElementChild as HTMLElement | null;
   if (!shell) {
     return;
   }
 
-  const targetHeight = clampHeight(Math.ceil(shell.getBoundingClientRect().height));
-  const currentHeight = window.innerHeight;
-  if (Math.abs(currentHeight - targetHeight) < 2) {
+  const contentWidth = Math.ceil(shell.scrollWidth + getHorizontalPadding(appRoot));
+  const targetWidth = clampWidth(addWidthHeadroom(contentWidth));
+  const contentHeight = Math.ceil(shell.scrollHeight + getVerticalPadding(appRoot));
+  const targetHeight = clampHeight(addHeightHeadroom(contentHeight));
+  const currentSize = await getCurrentWindow().innerSize();
+
+  try {
+    await getCurrentWindow().setMinSize(new LogicalSize(targetWidth, targetHeight));
+  } catch (error) {
+    console.error("Unable to set widget minimum size", error);
+  }
+
+  const shouldResizeWidth = currentSize.width < targetWidth;
+  const shouldResizeHeight = currentSize.height < targetHeight;
+
+  if (!shouldResizeWidth && !shouldResizeHeight) {
     return;
   }
 
+  const nextWidth = shouldResizeWidth ? targetWidth : currentSize.width;
+  const nextHeight = shouldResizeHeight ? targetHeight : currentSize.height;
+
   try {
-    await getCurrentWindow().setSize(new LogicalSize(window.innerWidth, targetHeight));
+    await getCurrentWindow().setSize(new LogicalSize(nextWidth, nextHeight));
   } catch (error) {
     console.error("Unable to resize widget window", error);
   }
 }
 
+function getHorizontalPadding(element: HTMLElement): number {
+  const style = window.getComputedStyle(element);
+  return Number.parseFloat(style.paddingLeft) + Number.parseFloat(style.paddingRight);
+}
+
+function getVerticalPadding(element: HTMLElement): number {
+  const style = window.getComputedStyle(element);
+  return Number.parseFloat(style.paddingTop) + Number.parseFloat(style.paddingBottom);
+}
+
+function clampWidth(value: number): number {
+  return Math.min(680, Math.max(470, value));
+}
+
 function clampHeight(value: number): number {
-  return Math.min(520, Math.max(96, value));
+  return Math.min(560, Math.max(132, value));
+}
+
+function addWidthHeadroom(value: number): number {
+  return Math.ceil(value * 1.1);
+}
+
+function addHeightHeadroom(value: number): number {
+  return Math.ceil(value + 42);
 }

@@ -1,11 +1,13 @@
 export type Locale = "en" | "es";
 
 export type Messages = {
+  locale: Locale;
   appTitle: string;
   close: string;
   hideToTray: string;
   refresh: string;
   about: string;
+  resize: string;
   developedBy: string;
   detecting: string;
   noProviders: string;
@@ -19,11 +21,13 @@ export type Messages = {
 
 const messages: Record<Locale, Messages> = {
   en: {
+    locale: "en",
     appTitle: "AI Usage",
     close: "Close",
     hideToTray: "Hide to tray",
     refresh: "Refresh now",
     about: "About",
+    resize: "Resize widget",
     developedBy: "Developed by @odrasile",
     detecting: "Detecting CLIs",
     noProviders: "No providers detected",
@@ -35,11 +39,13 @@ const messages: Record<Locale, Messages> = {
     weekly: "Weekly"
   },
   es: {
+    locale: "es",
     appTitle: "Uso AI",
     close: "Cerrar",
     hideToTray: "Ocultar a bandeja",
     refresh: "Actualizar ahora",
     about: "Informacion",
+    resize: "Redimensionar widget",
     developedBy: "Developed by @odrasile",
     detecting: "Detectando CLIs",
     noProviders: "No se detectaron proveedores",

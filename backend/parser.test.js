@@ -48,6 +48,15 @@ test("parses claude usage from cleaned tty output with merged labels", () => {
   assert.equal(usage.weekly.reset, "Apr29,12am(Europe/Madrid)");
 });
 
+test("parses claude usage from noisy ubuntu tty output", () => {
+  const usage = parseClaudeUsage("Status ConfigUsageStats Session Totalcost:$0.0000 Loadingusagedata… Esctocancel Curretsession 0%used Reses2:20pm(Europe/Madrid) Currentweek(allmodels) 0%used ResetsApr29,12am(Europe/Madrid) Esctocancel");
+
+  assert.equal(usage.primary.percent_left, 100);
+  assert.equal(usage.primary.reset, "2:20pm(Europe/Madrid)");
+  assert.equal(usage.weekly.percent_left, 100);
+  assert.equal(usage.weekly.reset, "Apr29,12am(Europe/Madrid)");
+});
+
 test("returns null for invalid claude totals", () => {
   assert.equal(parseClaudeUsage("Remaining requests: 10\nTotal requests: 0"), null);
 });
