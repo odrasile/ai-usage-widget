@@ -13,36 +13,34 @@ const ADAPTERS = {
 export async function getUsageSnapshot(projectRoot = process.cwd()) {
   const config = readConfig(projectRoot);
   const detected = await detectProviders();
-  const providers = [];
-
-  for (const provider of detected) {
+  const providers = (await Promise.all(detected.map(async (provider) => {
     const adapter = ADAPTERS[provider];
     if (!adapter) {
-      continue;
+      return null;
     }
 
     try {
       const usage = await adapter();
       if (usage) {
-        providers.push(usage);
-      } else {
-        providers.push({
-          provider,
-          available: false,
-          usage: null,
-          status: "CLI detected; usage unavailable"
-        });
+        return usage;
       }
+
+      return {
+        provider,
+        available: false,
+        usage: null,
+        status: "CLI detected; usage unavailable"
+      };
     } catch (error) {
       const message = error instanceof Error ? error.message : String(error);
-      providers.push({
+      return {
         provider,
         available: false,
         usage: null,
         status: `Error: ${message}`
-      });
+      };
     }
-  }
+  }))).filter(Boolean);
 
   return {
     providers,

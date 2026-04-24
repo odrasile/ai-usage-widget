@@ -7,10 +7,12 @@ import { Scheduler } from "./scheduler";
 import { getUsageSnapshot } from "./tauri";
 import type { ProviderUsage, UsageSnapshot } from "./types";
 
+const SNAPSHOT_CACHE_KEY = "monitorai:last-snapshot";
 const transparencyProbe = ((import.meta as ImportMeta & {
   env?: Record<string, string | undefined>;
 }).env?.VITE_TRANSPARENCY_PROBE ?? "");
 const root = document.querySelector<HTMLElement>("#app");
+const currentWindow = getCurrentWindow();
 
 if (!root) {
   throw new Error("App root not found");
@@ -19,10 +21,12 @@ if (!root) {
 const appRoot = root;
 
 const text = getMessages(detectLocale());
-let latestSnapshot: UsageSnapshot | null = null;
+let latestSnapshot: UsageSnapshot | null = loadCachedSnapshot();
 let resizeFrame = 0;
 let scheduler: Scheduler | null = null;
 const visualMode = detectVisualMode();
+let lastAppliedMinSize = "";
+let lastAppliedSize = "";
 
 if (transparencyProbe) {
   renderTransparencyProbe(appRoot, transparencyProbe);
@@ -30,7 +34,11 @@ if (transparencyProbe) {
   void ensureTransparentWindow();
 } else {
   appRoot.classList.add(`visual-mode--${visualMode}`);
-  renderLoading(appRoot, text);
+  if (latestSnapshot) {
+    renderSnapshot(appRoot, latestSnapshot, text, refreshNow, true);
+  } else {
+    renderLoading(appRoot, text);
+  }
   queueWindowSync();
   void applyWindowVisualMode();
 
@@ -39,6 +47,7 @@ if (transparencyProbe) {
     (snapshot) => {
       const mergedSnapshot = mergeSnapshotWithPrevious(snapshot, latestSnapshot);
       latestSnapshot = mergedSnapshot;
+      persistSnapshot(latestSnapshot);
       renderSnapshot(appRoot, mergedSnapshot, text, refreshNow);
       queueWindowSync();
     },
@@ -79,7 +88,7 @@ function queueWindowSync(): void {
 
 async function ensureTransparentWindow(): Promise<void> {
   try {
-    await getCurrentWindow().setBackgroundColor({
+    await currentWindow.setBackgroundColor({
       red: 0,
       green: 0,
       blue: 0,
@@ -94,7 +103,7 @@ async function applyWindowVisualMode(): Promise<void> {
   if (visualMode === "linux-fallback") {
     console.info("[widget] visual mode: linux-fallback");
     try {
-      await getCurrentWindow().setBackgroundColor({
+      await currentWindow.setBackgroundColor({
         red: 9,
         green: 12,
         blue: 18,
@@ -120,10 +129,14 @@ async function syncWindowLayout(): Promise<void> {
   const targetWidth = clampWidth(addWidthHeadroom(contentWidth));
   const contentHeight = Math.ceil(shell.scrollHeight + getVerticalPadding(appRoot));
   const targetHeight = clampHeight(addHeightHeadroom(contentHeight));
-  const currentSize = await getCurrentWindow().innerSize();
+  const currentSize = await currentWindow.innerSize();
+  const minSizeKey = `${targetWidth}x${targetHeight}`;
 
   try {
-    await getCurrentWindow().setMinSize(new LogicalSize(targetWidth, targetHeight));
+    if (lastAppliedMinSize !== minSizeKey) {
+      await currentWindow.setMinSize(new LogicalSize(targetWidth, targetHeight));
+      lastAppliedMinSize = minSizeKey;
+    }
   } catch (error) {
     console.error("Unable to set widget minimum size", error);
   }
@@ -137,9 +150,13 @@ async function syncWindowLayout(): Promise<void> {
 
   const nextWidth = shouldResizeWidth ? targetWidth : currentSize.width;
   const nextHeight = shouldResizeHeight ? targetHeight : currentSize.height;
+  const sizeKey = `${nextWidth}x${nextHeight}`;
 
   try {
-    await getCurrentWindow().setSize(new LogicalSize(nextWidth, nextHeight));
+    if (lastAppliedSize !== sizeKey) {
+      await currentWindow.setSize(new LogicalSize(nextWidth, nextHeight));
+      lastAppliedSize = sizeKey;
+    }
   } catch (error) {
     console.error("Unable to resize widget window", error);
   }
@@ -207,4 +224,26 @@ function mergeProviderWithPrevious(
     stale: true,
     status
   };
+}
+
+function persistSnapshot(snapshot: UsageSnapshot): void {
+  try {
+    window.localStorage.setItem(SNAPSHOT_CACHE_KEY, JSON.stringify(snapshot));
+  } catch {
+    // Ignore storage failures.
+  }
+}
+
+function loadCachedSnapshot(): UsageSnapshot | null {
+  try {
+    const raw = window.localStorage.getItem(SNAPSHOT_CACHE_KEY);
+    if (!raw) {
+      return null;
+    }
+
+    const snapshot = JSON.parse(raw) as UsageSnapshot;
+    return Array.isArray(snapshot.providers) ? snapshot : null;
+  } catch {
+    return null;
+  }
 }
