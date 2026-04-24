@@ -1,4 +1,5 @@
 import pty from "node-pty";
+import { getPtyShellLaunch } from "./platform.js";
 
 const ANSI_PATTERN = /\x1b\[[0-9;?]*[A-Za-z]/g;
 
@@ -6,19 +7,18 @@ export function runCodexStatusPty(options = {}) {
   const timeoutMs = options.timeoutMs ?? 15_000;
 
   return new Promise((resolve) => {
-    const shell = process.env.ComSpec || "cmd.exe";
     let output = "";
     let settled = false;
+    const launch = getPtyShellLaunch("codex --no-alt-screen");
 
     const child = pty.spawn(
-      shell,
-      ["/d", "/s", "/c", "codex --no-alt-screen"],
+      launch.file,
+      launch.args,
       {
         cols: 120,
         rows: 34,
         cwd: options.cwd ?? process.cwd(),
-        env: process.env,
-        hide: true
+        env: process.env
       }
     );
 

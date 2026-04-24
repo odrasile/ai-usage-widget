@@ -2,6 +2,7 @@ import pty from "node-pty";
 import { mkdirSync, writeFileSync } from "node:fs";
 import os from "node:os";
 import path from "node:path";
+import { getPtyShellLaunch } from "./platform.js";
 
 const ANSI_PATTERN = /\x1b\[[0-9;?]*[A-Za-z]/g;
 const CONPTY_NOISE_PATTERN = /C:\\.*node-pty\\lib\\conpty_console_list_agent\.js[\s\S]*$/i;
@@ -19,13 +20,12 @@ export function runClaudeUsagePty(options = {}) {
     let child;
 
     try {
-      const shell = process.env.ComSpec || "cmd.exe";
-      child = pty.spawn(shell, ["/d", "/s", "/c", "claude"], {
+      const launch = getPtyShellLaunch("claude");
+      child = pty.spawn(launch.file, launch.args, {
         cols: 120,
         rows: 34,
         cwd: options.cwd ?? process.cwd(),
-        env: process.env,
-        hide: true
+        env: process.env
       });
       eventLog.push(`${timestamp()} SPAWN claude`);
     } catch (error) {

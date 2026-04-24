@@ -1,6 +1,7 @@
 import { execFile } from "node:child_process";
+import { getLookupCommand, getShellLaunch, isWindows } from "./platform.js";
 
-const ALLOWED_COMMANDS = new Set(["where.exe", "codex", "claude"]);
+const ALLOWED_COMMANDS = new Set(["where.exe", "which", "codex", "claude"]);
 
 export function execFileWithTimeout(command, args = [], options = {}) {
   if (!ALLOWED_COMMANDS.has(command)) {
@@ -24,7 +25,7 @@ export function execFileWithTimeout(command, args = [], options = {}) {
         invocation.args,
         {
           timeout: timeoutMs,
-          windowsHide: true,
+          windowsHide: isWindows(),
           maxBuffer: 1024 * 1024
         },
         (error, stdout, stderr) => {
@@ -54,16 +55,18 @@ export function execFileWithTimeout(command, args = [], options = {}) {
 }
 
 function getInvocation(command, args) {
-  if (process.platform !== "win32" || command === "where.exe") {
+  if (command === "where.exe" || command === "which") {
     return { command, args };
   }
 
-  return {
-    command: "cmd.exe",
-    args: ["/d", "/s", "/c", [command, ...args].map(quoteCmdPart).join(" ")]
-  };
+  const commandLine = [command, ...args].map(quoteShellPart).join(" ");
+  return getShellLaunch(commandLine);
 }
 
-function quoteCmdPart(value) {
-  return `"${String(value).replace(/"/g, '\\"')}"`;
+function quoteShellPart(value) {
+  if (isWindows()) {
+    return `"${String(value).replace(/"/g, '\\"')}"`;
+  }
+
+  return `'${String(value).replace(/'/g, `'\\''`)}'`;
 }
