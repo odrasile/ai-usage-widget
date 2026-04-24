@@ -1,5 +1,8 @@
 #![cfg_attr(windows, windows_subsystem = "windows")]
 
+use std::env;
+use std::ffi::OsString;
+use std::fs;
 use std::path::{Path, PathBuf};
 use std::process::Command;
 use tauri::{
@@ -19,11 +22,13 @@ const CREATE_NO_WINDOW: u32 = 0x08000000;
 fn get_usage_snapshot(app: AppHandle) -> Result<serde_json::Value, String> {
     let project_root = project_root()?;
     let backend = resolve_backend(&app, &project_root)?;
-    let mut command = Command::new("node");
+    let node_binary = resolve_node_binary(&backend.root)?;
+    let mut command = Command::new(&node_binary);
     command
         .arg(&backend.entry)
         .arg("snapshot")
-        .arg(&backend.root);
+        .arg(&backend.root)
+        .current_dir(&backend.root);
 
     #[cfg(windows)]
     command.creation_flags(CREATE_NO_WINDOW);
@@ -37,6 +42,102 @@ fn get_usage_snapshot(app: AppHandle) -> Result<serde_json::Value, String> {
     }
 
     serde_json::from_slice(&output.stdout).map_err(|error| format!("Invalid backend JSON: {error}"))
+}
+
+fn resolve_node_binary(resource_root: &Path) -> Result<OsString, String> {
+    if let Some(value) = env::var_os("MONITORAI_NODE_BIN") {
+        return Ok(value);
+    }
+
+    let mut candidates = Vec::new();
+
+    let resource_candidates = [
+        resource_root.join("bin").join(platform_node_binary_name()),
+        resource_root.join(platform_node_binary_name()),
+    ];
+    candidates.extend(resource_candidates.into_iter().map(OsString::from));
+
+    for name in [platform_node_binary_name(), platform_nodejs_binary_name()] {
+        if let Some(path) = find_in_path(name) {
+            candidates.push(path);
+        }
+    }
+
+    for path in common_system_node_paths() {
+        candidates.push(OsString::from(path));
+    }
+
+    for candidate in candidates {
+        if is_executable(&candidate) {
+            return Ok(candidate);
+        }
+    }
+
+    Err(
+        "Node runtime not found. Install Node.js 20+ in a system path, or set MONITORAI_NODE_BIN to an absolute node binary."
+            .to_string(),
+    )
+}
+
+fn find_in_path(binary_name: &str) -> Option<OsString> {
+    let path_var = env::var_os("PATH")?;
+    for directory in env::split_paths(&path_var) {
+        let candidate = directory.join(binary_name);
+        if candidate.is_file() {
+            return Some(candidate.into_os_string());
+        }
+    }
+    None
+}
+
+fn is_executable(path: &OsString) -> bool {
+    fs::metadata(path).map(|metadata| metadata.is_file()).unwrap_or(false)
+}
+
+fn platform_node_binary_name() -> &'static str {
+    #[cfg(windows)]
+    {
+        "node.exe"
+    }
+
+    #[cfg(not(windows))]
+    {
+        "node"
+    }
+}
+
+fn platform_nodejs_binary_name() -> &'static str {
+    #[cfg(windows)]
+    {
+        "nodejs.exe"
+    }
+
+    #[cfg(not(windows))]
+    {
+        "nodejs"
+    }
+}
+
+fn common_system_node_paths() -> Vec<&'static str> {
+    #[cfg(windows)]
+    {
+        vec![
+            r"C:\Program Files\nodejs\node.exe",
+            r"C:\Program Files (x86)\nodejs\node.exe",
+        ]
+    }
+
+    #[cfg(not(windows))]
+    {
+        vec![
+            "/usr/bin/node",
+            "/usr/bin/nodejs",
+            "/usr/local/bin/node",
+            "/usr/local/bin/nodejs",
+            "/bin/node",
+            "/snap/bin/node",
+        ]
+    }
 }
 
 fn project_root() -> Result<PathBuf, String> {

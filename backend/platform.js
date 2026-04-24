@@ -1,3 +1,6 @@
+import os from "node:os";
+import path from "node:path";
+
 export function getLookupCommand() {
   return process.platform === "win32"
     ? { command: "where.exe", args: [] }
@@ -26,6 +29,25 @@ export function getRawLaunch(command, args = []) {
   return {
     file: command,
     args
+  };
+}
+
+export function augmentPath(env) {
+  if (process.platform === "win32") {
+    return env;
+  }
+
+  const home = os.homedir();
+  const commonPaths = [
+    path.join(home, ".npm-global", "bin"),
+    path.join(home, ".local", "bin"),
+    "/usr/local/bin"
+  ];
+
+  const currentPath = env.PATH || "";
+  return {
+    ...env,
+    PATH: [...commonPaths, ...currentPath.split(":")].join(":")
   };
 }
 

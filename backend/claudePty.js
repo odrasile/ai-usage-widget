@@ -2,7 +2,7 @@ import pty from "node-pty";
 import { mkdirSync, writeFileSync } from "node:fs";
 import os from "node:os";
 import path from "node:path";
-import { getPtyShellLaunch } from "./platform.js";
+import { getPtyShellLaunch, augmentPath } from "./platform.js";
 import { parseClaudeUsage } from "./parser.js";
 
 const ANSI_PATTERN = /\x1b\[[0-9;?]*[A-Za-z]/g;
@@ -22,11 +22,12 @@ export function runClaudeUsagePty(options = {}) {
 
     try {
       const launch = getPtyShellLaunch("claude");
+      const env = augmentPath({ ...process.env });
       child = pty.spawn(launch.file, launch.args, {
         cols: 120,
         rows: 34,
         cwd: options.cwd ?? process.cwd(),
-        env: process.env
+        env
       });
       eventLog.push(`${timestamp()} SPAWN claude`);
     } catch (error) {

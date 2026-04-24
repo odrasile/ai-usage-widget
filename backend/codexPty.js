@@ -1,5 +1,5 @@
 import pty from "node-pty";
-import { getPtyShellLaunch } from "./platform.js";
+import { getPtyShellLaunch, augmentPath } from "./platform.js";
 
 const ANSI_PATTERN = /\x1b\[[0-9;?]*[A-Za-z]/g;
 
@@ -10,6 +10,7 @@ export function runCodexStatusPty(options = {}) {
     let output = "";
     let settled = false;
     const launch = getPtyShellLaunch("codex --no-alt-screen");
+    const env = augmentPath({ ...process.env });
 
     const child = pty.spawn(
       launch.file,
@@ -18,7 +19,7 @@ export function runCodexStatusPty(options = {}) {
         cols: 120,
         rows: 34,
         cwd: options.cwd ?? process.cwd(),
-        env: process.env
+        env
       }
     );
 

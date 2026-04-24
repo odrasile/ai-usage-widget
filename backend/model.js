@@ -33,12 +33,13 @@ export async function getUsageSnapshot(projectRoot = process.cwd()) {
           status: "CLI detected; usage unavailable"
         });
       }
-    } catch {
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error);
       providers.push({
         provider,
         available: false,
         usage: null,
-        status: "CLI detected; usage unavailable"
+        status: `Error: ${message}`
       });
     }
   }
