@@ -49,10 +49,10 @@ Providers soportados hoy:
 
 - `codex`
 - `claude`
+- `gemini`
 
 Providers previstos:
 
-- `gemini`
 - otros CLIs AI coding similares
 
 La arquitectura debe permitir anadir nuevos providers sin reescribir la UI ni el scheduler. Cada provider debe tener:
@@ -77,6 +77,7 @@ Metodo por plataforma:
 ```powershell
 where.exe codex
 where.exe claude
+where.exe gemini
 ```
 
 ### Unix / Ubuntu
@@ -84,6 +85,7 @@ where.exe claude
 ```bash
 which codex
 which claude
+which gemini
 ```
 
 Si una herramienta esta instalada pero falla al obtener uso, debe mostrarse como detectada con estado no disponible, no como ausente.
@@ -175,9 +177,47 @@ Compatibilidad:
 
 No asumir que `echo /usage | claude` o piping simple sea suficiente en todas las plataformas.
 
+### Gemini CLI
+
+Gemini CLI muestra la cuota directamente en su barra de estado al iniciar la sesion.
+
+Flujo correcto conocido:
+
+1. Lanzar `gemini -p "hi"` (modo no interactivo con un prompt simple de sondeo) o el binario directamente en un PTY.
+2. Esperar un tiempo prudencial (aprox. 3 segundos) para permitir que el TUI renderice la linea de estado en el terminal.
+3. Capturar la salida completa.
+4. Parsear datos de la tabla de estado o mensajes de error.
+
+Ejemplo de salida real esperada:
+
+```text
+workspace (/directory)             branch             sandbox               /model                               quota
+~/development/MonitorAI            master             no sandbox            gemini-3-flash-preview            55% used
+```
+
+Datos a extraer:
+
+- porcentaje usado de la cuota diaria (`XX% used`)
+- nivel de suscripcion (`Tier:` o `Plan:`)
+
+Calculo requerido:
+
+```text
+percent_left = 100 - percent_used
+```
+
+Representacion especifica en UI:
+
+- Para Gemini, la etiqueta del limite principal debe ser `24h` en lugar de `5h`.
+- El tiempo de reinicio debe mostrarse como `23:59` de forma fija, salvo que el CLI proporcione un valor dinámico parseable en el futuro.
+
+Compatibilidad:
+
+- Detectar mensajes de "exhausted capacity" o errores `429` / `RESOURCE_EXHAUSTED` para reportar 0% de disponibilidad de forma inmediata.
+
 ### Futuros CLIs
 
-Para `gemini` u otros providers, el proyecto debe seguir esta regla:
+Para otros providers, el proyecto debe seguir esta regla:
 
 1. Detectar si el CLI esta instalado.
 2. Determinar si la consulta de uso requiere PTY real o puede ser non-interactive.
@@ -419,6 +459,7 @@ Whitelist minima actual:
 - `where.exe` o `which`
 - `codex`
 - `claude`
+- `gemini`
 
 ---
 
@@ -428,18 +469,19 @@ Casos minimos:
 
 1. Codex presente con `/status` parseable.
 2. Claude presente con `/usage` parseable.
-3. Claude con primer `/usage` que solo cierra dialogo y segundo `/usage` que muestra uso.
-4. Ambos presentes.
-5. Ninguno presente.
-6. CLI detectada pero uso no disponible.
-7. Fallo de CLI.
-8. Output inesperado.
-9. Output limpio con tokens pegados del TTY.
-10. UI sin providers.
-11. UI durante deteccion/refresco.
-12. Localizacion espanol/ingles.
-13. Altura adaptativa del widget segun numero de providers.
-14. Compatibilidad de deteccion Windows/Unix.
+3. Gemini presente con tabla de cuota (`XX% used`) parseable.
+4. Gemini con mensaje de capacidad agotada ("exhausted").
+5. Claude con primer `/usage` que solo cierra dialogo y segundo `/usage` que muestra uso.
+6. Multiples providers presentes simultaneamente.
+7. Ninguno presente.
+8. CLI detectada pero uso no disponible.
+9. Fallo de CLI (exit codes, timeouts).
+10. Output inesperado o ruidoso (ej. mensajes de SSH agent al inicio).
+11. Unificacion de formatos de hora (Hora, Fecha) en todas las herramientas.
+12. UI con etiquetas personalizadas para Gemini (24h, 23:59).
+13. Localizacion espanol/ingles.
+14. Altura adaptativa del widget segun numero de providers.
+15. Compatibilidad de deteccion Windows/Unix.
 
 ---
 

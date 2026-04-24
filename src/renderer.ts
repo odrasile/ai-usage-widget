@@ -6,7 +6,8 @@ type ResizeDirection = "East" | "North" | "NorthEast" | "NorthWest" | "South" | 
 
 const providerLabels: Record<string, string> = {
   codex: "Codex",
-  claude: "Claude Code"
+  claude: "Claude Code",
+  gemini: "Gemini"
 };
 
 export function renderSnapshot(root: HTMLElement, snapshot: UsageSnapshot, text: Messages, onRefresh: () => void, isRefreshing = false): void {
@@ -156,20 +157,32 @@ function renderProvider(provider: ProviderUsage, text: Messages): HTMLElement {
 
   if (!provider.usage) {
     const status = provider.status ?? text.unavailable;
+    const isGemini = provider.provider === "gemini";
+    const label5h = isGemini ? "24h" : text.limit5h;
+    
     item.innerHTML = `
       <div class="provider__top">
         <strong>${providerLabels[provider.provider] ?? provider.provider}</strong>
         <span>--</span>
       </div>
-      <div class="meter meter--empty" aria-label="Usage unavailable">
-        <span style="width: 0%"></span>
+      <div class="limit-row">
+        <div class="limit-row__meta">
+          <span class="limit-row__label">${escapeHtml(label5h)}</span>
+          <span class="limit-row__reset">${escapeHtml(status)}</span>
+        </div>
+        <div class="meter meter--empty" aria-label="Usage unavailable">
+          <span style="width: 0%"></span>
+        </div>
       </div>
-      <div class="provider__reset">${escapeHtml(status)}</div>
     `;
     return item;
   }
 
-  const primary = renderLimitRow(text.limit5h, provider.usage.primary.percent_left, provider.usage.primary.reset, text, provider.stale);
+  const isGemini = provider.provider === "gemini";
+  const label5h = isGemini ? "24h" : text.limit5h;
+  const resetValue = isGemini ? "23:59" : provider.usage.primary.reset;
+
+  const primary = renderLimitRow(label5h, provider.usage.primary.percent_left, resetValue, text, provider.stale);
   const weekly = provider.usage.weekly
     ? renderLimitRow(text.weekly, provider.usage.weekly.percent_left, provider.usage.weekly.reset, text, provider.stale)
     : "";
@@ -289,34 +302,45 @@ function formatResetText(value: string, locale: "en" | "es"): string {
 }
 
 function formatWithZone(value: string, locale: "en" | "es"): string | null {
-  const match = value.match(/^([A-Za-z]{3})\s*(\d{1,2}),\s*(\d{1,2}:\d{2})\s*(am|pm)?\s*\(([^)]+)\)$/i)
-    ?? value.match(/^(\d{1,2}:\d{2})\s*(am|pm)?\s*\(([^)]+)\)$/i);
+  const match = value.match(/^([A-Za-z]{3})\s*(\d{1,2}),?\s*(\d{1,2}(?::\d{2})?)\s*(am|pm)?\s*(?:\(([^)]+)\))?$/i)
+    ?? value.match(/^(\d{1,2}(?::\d{2})?)\s*(am|pm)?\s*(?:\(([^)]+)\))?$/i);
 
   if (!match) {
     return null;
   }
 
   if (match.length === 6) {
-    const [, month, day, time, meridiem, zone] = match;
+    const [, month, day, time, meridiem] = match;
     const formattedDate = formatMonthDay(month, Number(day), locale);
-    const formattedTime = formatClock(time, meridiem ?? null, locale);
-    return formattedDate && formattedTime ? `${formattedDate}, ${formattedTime} (${zone})` : value;
+    const normalizedTime = time.includes(":") ? time : `${time}:00`;
+    const formattedTime = formatClock(normalizedTime, meridiem ?? null, locale);
+    return formattedTime && formattedDate ? `${formattedTime}, ${formattedDate}` : value;
   }
 
-  const [, time, meridiem, zone] = match;
-  const formattedTime = formatClock(time, meridiem ?? null, locale);
-  return formattedTime ? `${formattedTime} (${zone})` : value;
+  const [, time, meridiem] = match;
+  const normalizedTime = time.includes(":") ? time : `${time}:00`;
+  const formattedTime = formatClock(normalizedTime, meridiem ?? null, locale);
+  return formattedTime ?? value;
 }
 
 function formatTimeAndMonthDay(value: string, locale: "en" | "es"): string | null {
-  const match = value.match(/^(\d{1,2}:\d{2})\s+on\s+(\d{1,2})\s+([A-Za-z]{3})$/i);
+  const match = value.match(/^(\d{1,2}:\d{2})\s+(?:on|on\s+|,)\s*(\d{1,2})\s+([A-Za-z]{3})$/i)
+    ?? value.match(/^(\d{1,2}:\d{2})\s+(?:on|on\s+|,)\s*([A-Za-z]{3})\s+(\d{1,2})$/i);
+
   if (!match) {
     return null;
   }
 
-  const [, time, day, month] = match;
+  const [, time, part2, part3] = match;
   const formattedTime = formatClock(time, null, locale);
-  const formattedDate = formatMonthDay(month, Number(day), locale);
+  
+  let formattedDate: string | null = null;
+  if (Number.isFinite(Number(part2))) {
+    formattedDate = formatMonthDay(part3, Number(part2), locale);
+  } else {
+    formattedDate = formatMonthDay(part2, Number(part3), locale);
+  }
+
   return formattedTime && formattedDate ? `${formattedTime}, ${formattedDate}` : value;
 }
 
@@ -353,7 +377,8 @@ function formatClock(time: string, meridiem: string | null, locale: "en" | "es")
   const date = new Date(Date.UTC(2026, 0, 1, hours, minutes));
   return new Intl.DateTimeFormat(localeForIntl(locale), {
     hour: "numeric",
-    minute: "2-digit"
+    minute: "2-digit",
+    timeZone: "UTC"
   }).format(date);
 }
 
@@ -366,7 +391,8 @@ function formatMonthDay(month: string, day: number, locale: "en" | "es"): string
   const date = new Date(Date.UTC(2026, monthIndex, day));
   return new Intl.DateTimeFormat(localeForIntl(locale), {
     month: "short",
-    day: "numeric"
+    day: "numeric",
+    timeZone: "UTC"
   }).format(date);
 }
 

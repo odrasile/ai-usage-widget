@@ -1,11 +1,13 @@
 import { getClaudeUsage } from "./adapters/claude.js";
 import { getCodexUsage } from "./adapters/codex.js";
+import { getGeminiUsage } from "./adapters/gemini.js";
 import { readConfig } from "./config.js";
 import { detectProviders } from "./detector.js";
 
 const ADAPTERS = {
   codex: getCodexUsage,
-  claude: getClaudeUsage
+  claude: getClaudeUsage,
+  gemini: getGeminiUsage
 };
 
 export async function getUsageSnapshot(projectRoot = process.cwd()) {

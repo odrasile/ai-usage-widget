@@ -1,7 +1,7 @@
 import { execFileWithTimeout } from "./executor.js";
 import { getLookupCommand } from "./platform.js";
 
-const PROVIDERS = ["codex", "claude"];
+const PROVIDERS = ["codex", "claude", "gemini"];
 
 export async function detectProviders() {
   const detected = [];

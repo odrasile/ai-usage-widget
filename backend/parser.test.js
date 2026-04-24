@@ -1,6 +1,36 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { parseClaudeUsage, parseCodexStatus } from "./parser.js";
+import { parseClaudeUsage, parseCodexStatus, parseGeminiUsage } from "./parser.js";
+
+test("parses gemini usage and extracts tier", () => {
+  const output = `
+ Interaction Summary
+ Session ID:                 ca278ca1-cdc7-4ff8-9266-22fc22f7d527
+ Auth Method:                Signed in with Google (elisardo @gmail.com)
+ Tier:                       Gemini Code Assist for individuals
+ Tool Calls:                 0 ( ✓ 0 x 0 )
+ Success Rate:               0.0%
+  `;
+  const usage = parseGeminiUsage(output);
+
+  assert.equal(usage.primary.percent_left, 100);
+  assert.equal(usage.status, "Gemini Code Assist for individuals");
+});
+
+test("parses gemini quota in table format", () => {
+  const output = "c:\\Projects\\MonitorAI  master  no sandbox  gemini-3-flash-preview  12% used";
+  const usage = parseGeminiUsage(output);
+
+  assert.equal(usage.primary.percent_left, 88);
+  assert.equal(usage.status, "Gemini");
+});
+
+test("parses gemini exhausted quota", () => {
+  const output = "Attempt 1 failed: You have exhausted your capacity on this model. Your quota will reset after 0s..";
+  const usage = parseGeminiUsage(output);
+
+  assert.equal(usage.primary.percent_left, 0);
+});
 
 test("parses codex status with 5h, weekly and reset values", () => {
   const usage = parseCodexStatus("5h remaining: 64%\nWeekly remaining: 82%\nReset in 2h 10m");

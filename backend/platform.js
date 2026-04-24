@@ -22,6 +22,13 @@ export function getPtyShellLaunch(commandLine) {
   return getShellLaunch(commandLine);
 }
 
+export function getRawLaunch(command, args = []) {
+  return {
+    file: command,
+    args
+  };
+}
+
 export function isWindows() {
   return process.platform === "win32";
 }

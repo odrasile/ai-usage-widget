@@ -2,6 +2,46 @@ const CLAUDE_SESSION_LABEL = /(?:current\s*session|curr\w*session)/i;
 const CLAUDE_WEEK_LABEL = /(?:current\s*week|curr\w*week)/i;
 const CLAUDE_RESET_LABEL = /Rese(?:t?s?)?/i;
 
+export function parseGeminiUsage(output) {
+  const tierMatch = output.match(/(?:Tier|Plan):\s+([^\n\r/]+)/i);
+  const tier = tierMatch ? tierMatch[1].trim() : null;
+
+  const quotaMatch = output.match(/(\d+(?:\.\d+)?)\s*%\s*used/i);
+  
+  if (quotaMatch) {
+    const used = parseFloat(quotaMatch[1]);
+    return {
+      primary: {
+        percent_left: Math.max(0, 100 - used),
+        reset: "N/A"
+      },
+      status: tier || "Gemini"
+    };
+  }
+
+  if (/exhausted\s+your\s+capacity/i.test(output) || /RESOURCE_EXHAUSTED/i.test(output)) {
+    return {
+      primary: {
+        percent_left: 0,
+        reset: "unknown"
+      },
+      status: tier || "Gemini (Exhausted)"
+    };
+  }
+
+  if (tier) {
+    return {
+      primary: {
+        percent_left: 100,
+        reset: "N/A"
+      },
+      status: tier
+    };
+  }
+
+  return null;
+}
+
 export function parseCodexStatus(output) {
   const fiveHourPercent = findPercent(output, [/5h[^0-9]*(\d+(?:\.\d+)?)\s*%/i, /(\d+(?:\.\d+)?)\s*%[^.\n]*(?:5h|five)/i]);
   const weeklyPercent = findPercent(output, [/weekly[^0-9]*(\d+(?:\.\d+)?)\s*%/i, /week[^0-9]*(\d+(?:\.\d+)?)\s*%/i]);
