@@ -90,3 +90,12 @@ test("parses claude usage from noisy ubuntu tty output", () => {
 test("returns null for invalid claude totals", () => {
   assert.equal(parseClaudeUsage("Remaining requests: 10\nTotal requests: 0"), null);
 });
+
+test("parses codex status when output is flattened onto one line", () => {
+  const usage = parseCodexStatus("OpenAI Codex 5h limit 58% left (resets 20:45) Weekly limit 81% left (resets 09:24 on 29 Apr)");
+
+  assert.equal(usage.primary.percent_left, 58);
+  assert.equal(usage.primary.reset, "20:45");
+  assert.equal(usage.weekly.percent_left, 81);
+  assert.equal(usage.weekly.reset, "09:24 on 29 Apr");
+});

@@ -2,8 +2,8 @@ import "./styles.css";
 import { LogicalPosition, LogicalSize } from "@tauri-apps/api/dpi";
 import { getCurrentWindow } from "@tauri-apps/api/window";
 import { detectLocale, getMessages } from "./i18n";
-import { renderError, renderLoading, renderSnapshot, renderTransparencyProbe, setRefreshingState } from "./renderer";
-import { getDetectedProviders, getProviderUsage, getRefreshInterval, loadWindowState, saveWindowState } from "./tauri";
+import { renderError, renderLoading, renderSnapshot, renderTransparencyProbe, setRefreshingState, updateProviderPanel } from "./renderer";
+import { appendWindowDebugLog, getDetectedProviders, getProviderUsage, getRefreshInterval, loadWindowState, saveWindowState } from "./tauri";
 import type { AppMetadata, ProviderUsage, UsageSnapshot } from "./types";
 
 const SNAPSHOT_CACHE_KEY = "monitorai:last-snapshot";
@@ -34,6 +34,10 @@ let persistWindowStateTimer = 0;
 let windowStatePersistenceReady = false;
 let refreshTimer = 0;
 let refreshInFlight = false;
+let restoredWindowState: StoredWindowState | null = null;
+let hasCompletedInitialLayout = false;
+let suppressWindowStatePersistence = 0;
+let debugSequence = 0;
 
 if (transparencyProbe) {
   renderTransparencyProbe(appRoot, transparencyProbe);
@@ -44,6 +48,7 @@ if (transparencyProbe) {
 }
 
 async function startApp(): Promise<void> {
+  await logWindowDebug("start", { visualMode });
   appRoot.classList.add(`visual-mode--${visualMode}`);
   if (latestSnapshot) {
     renderSnapshot(appRoot, latestSnapshot, text, appMetadata, refreshNow, false);
@@ -117,26 +122,60 @@ async function syncWindowLayout(): Promise<void> {
     return;
   }
 
-  const contentWidth = Math.ceil(shell.scrollWidth + getHorizontalPadding(appRoot));
-  const targetWidth = clampWidth(addWidthHeadroom(contentWidth));
-  const contentHeight = Math.ceil(shell.scrollHeight + getVerticalPadding(appRoot));
-  const targetHeight = clampHeight(addHeightHeadroom(contentHeight));
-  const currentSize = await currentWindow.innerSize();
-  const minSizeKey = `${targetWidth}x${targetHeight}`;
+  const footer = shell.querySelector<HTMLElement>(".widget__footer");
+  const body = shell.querySelector<HTMLElement>(".widget__body");
+  const header = shell.querySelector<HTMLElement>(".widget__header");
+  const shellStyle = window.getComputedStyle(shell);
+  const verticalPadding = Number.parseFloat(shellStyle.paddingTop) + Number.parseFloat(shellStyle.paddingBottom);
+  const horizontalPadding = Number.parseFloat(shellStyle.paddingLeft) + Number.parseFloat(shellStyle.paddingRight);
+  const border = 2;
+  const measuredWidth = clampWidth(measureRequiredWidth(shell) + horizontalPadding + border);
+  const contentHeight = Math.ceil(
+    (header?.scrollHeight ?? 0) +
+    (body?.scrollHeight ?? 0) +
+    (footer?.scrollHeight ?? 0) +
+    verticalPadding +
+    border
+  );
+  const measuredHeight = clampHeight(contentHeight);
+  const currentSize = await getCurrentLogicalInnerSize();
+  const targetWidth = resolveTargetWidth(measuredWidth, currentSize.width);
+  const targetHeight = resolveTargetHeight(measuredHeight, currentSize.height);
+  const minSizeKey = `${measuredWidth}x${measuredHeight}`;
+  await logWindowDebug("syncWindowLayout:measure", {
+    measuredWidth,
+    contentHeight,
+    measuredHeight,
+    currentWidth: currentSize.width,
+    currentHeight: currentSize.height,
+    targetWidth,
+    targetHeight,
+    restoredWidth: restoredWindowState?.width ?? null,
+    restoredHeight: restoredWindowState?.height ?? null,
+    restoredX: restoredWindowState?.x ?? null,
+    restoredY: restoredWindowState?.y ?? null
+  });
 
   try {
     if (lastAppliedMinSize !== minSizeKey) {
-      await currentWindow.setMinSize(new LogicalSize(targetWidth, targetHeight));
+      await currentWindow.setMinSize(new LogicalSize(measuredWidth, measuredHeight));
       lastAppliedMinSize = minSizeKey;
     }
   } catch (error) {
     console.error("Unable to set widget minimum size", error);
   }
 
-  const shouldResizeWidth = currentSize.width < targetWidth;
-  const shouldResizeHeight = currentSize.height < targetHeight;
+  const shouldResizeWidth = targetWidth - currentSize.width > 1;
+  const shouldResizeHeight = Math.abs(currentSize.height - targetHeight) > 1;
 
   if (!shouldResizeWidth && !shouldResizeHeight) {
+    hasCompletedInitialLayout = true;
+    await logWindowDebug("syncWindowLayout:skip-resize", {
+      currentWidth: currentSize.width,
+      currentHeight: currentSize.height,
+      targetWidth,
+      targetHeight
+    });
     return;
   }
 
@@ -146,38 +185,35 @@ async function syncWindowLayout(): Promise<void> {
 
   try {
     if (lastAppliedSize !== sizeKey) {
+      beginSuppressWindowStatePersistence();
+      await logWindowDebug("syncWindowLayout:set-size", {
+        nextWidth,
+        nextHeight,
+        currentWidth: currentSize.width,
+        previousWidth: currentSize.width,
+        previousHeight: currentSize.height
+      });
       await currentWindow.setSize(new LogicalSize(nextWidth, nextHeight));
       lastAppliedSize = sizeKey;
     }
   } catch (error) {
     console.error("Unable to resize widget window", error);
+  } finally {
+    endSuppressWindowStatePersistenceSoon();
+    hasCompletedInitialLayout = true;
   }
 }
 
 function clampWidth(value: number): number {
-  return Math.min(680, Math.max(470, value));
+  return Math.min(760, Math.max(baseMinWidth(), value));
 }
 
 function clampHeight(value: number): number {
   return Math.min(560, Math.max(132, value));
 }
 
-function addWidthHeadroom(value: number): number {
-  return Math.ceil(value * 1.1);
-}
-
-function addHeightHeadroom(value: number): number {
-  return Math.ceil(value + 28);
-}
-
-function getHorizontalPadding(element: HTMLElement): number {
-  const style = window.getComputedStyle(element);
-  return Number.parseFloat(style.paddingLeft) + Number.parseFloat(style.paddingRight);
-}
-
-function getVerticalPadding(element: HTMLElement): number {
-  const style = window.getComputedStyle(element);
-  return Number.parseFloat(style.paddingTop) + Number.parseFloat(style.paddingBottom);
+function baseMinWidth(): number {
+  return visualMode === "linux-fallback" ? 540 : 470;
 }
 
 function detectVisualMode(): "transparent" | "linux-fallback" {
@@ -267,33 +303,58 @@ async function refreshAllProviders(): Promise<void> {
     }
 
     const previousByProvider = new Map((latestSnapshot?.providers ?? []).map((provider) => [provider.provider, provider]));
-    const baseProviders = detectedProviders.map((provider) => {
-      const previous = previousByProvider.get(provider);
-      return previous ? {
-        ...previous,
-        available: false,
-        stale: true,
-        refreshing: true,
-        status: previous.status ?? text.usingCachedData
-      } : {
-        provider,
-        available: false,
-        stale: true,
-        refreshing: true,
-        usage: null,
-        status: text.detecting
-      };
-    });
-
     latestSnapshot = {
-      providers: baseProviders,
+      providers: detectedProviders.map((providerName) => {
+        const previous = previousByProvider.get(providerName);
+        if (previous) {
+          return {
+            ...previous,
+            stale: false,
+            refreshing: true
+          };
+        }
+
+        return {
+          provider: providerName,
+          available: false,
+          refreshing: true,
+          usage: null,
+          status: text.refreshingProviders
+        } satisfies ProviderUsage;
+      }),
       refresh_interval_sec: refreshIntervalSec,
       updated_at: new Date().toISOString()
     };
+
     renderSnapshot(appRoot, latestSnapshot, text, appMetadata, refreshNow, true);
     queueWindowSync();
 
-    await Promise.all(detectedProviders.map(async (providerName) => {
+    const updateProviderResult = (providerName: string, nextProvider: ProviderUsage): void => {
+      if (!latestSnapshot) {
+        return;
+      }
+
+      latestSnapshot = {
+        ...latestSnapshot,
+        updated_at: new Date().toISOString(),
+        providers: latestSnapshot.providers.map((provider) => {
+          if (provider.provider !== providerName) {
+            return provider;
+          }
+
+          return nextProvider;
+        })
+      };
+
+      persistSnapshot(latestSnapshot);
+      const stillRefreshing = hasPendingRefreshingProviders(latestSnapshot.providers);
+      updateProviderPanel(appRoot, nextProvider, text, latestSnapshot.updated_at, stillRefreshing);
+      setRefreshingState(appRoot, text, stillRefreshing);
+      queueWindowSync();
+    };
+
+    await Promise.allSettled(detectedProviders.map(async (providerName) => {
+      const previous = previousByProvider.get(providerName);
       const providerResult = await getProviderUsage(providerName).catch((error: unknown) => {
         const message = error instanceof Error ? error.message : String(error);
         return {
@@ -305,36 +366,12 @@ async function refreshAllProviders(): Promise<void> {
         } as ProviderUsage;
       });
 
-      const previous = previousByProvider.get(providerName);
-      const mergedProvider = mergeProviderWithPrevious(providerResult, previous, text.usingCachedData);
-
-      if (!latestSnapshot) {
-        return;
-      }
-
-      latestSnapshot = {
-        ...latestSnapshot,
-        updated_at: new Date().toISOString(),
-        providers: latestSnapshot.providers.map((provider) => {
-          return provider.provider === providerName ? mergedProvider : provider;
-        })
-      };
-
-      persistSnapshot(latestSnapshot);
-      renderSnapshot(appRoot, latestSnapshot, text, appMetadata, refreshNow, hasPendingRefreshingProviders(latestSnapshot.providers));
-      queueWindowSync();
+      const merged = mergeProviderWithPrevious(providerResult, previous, text.usingCachedData);
+      updateProviderResult(providerName, {
+        ...merged,
+        refreshing: false
+      });
     }));
-
-    if (latestSnapshot) {
-      latestSnapshot = {
-        ...latestSnapshot,
-        refresh_interval_sec: refreshIntervalSec,
-        updated_at: new Date().toISOString()
-      };
-      persistSnapshot(latestSnapshot);
-      renderSnapshot(appRoot, latestSnapshot, text, appMetadata, refreshNow, false);
-      queueWindowSync();
-    }
 
     scheduleNextRefresh(refreshIntervalSec);
   } catch (error) {
@@ -399,17 +436,39 @@ type StoredWindowState = {
 
 async function restoreWindowState(): Promise<void> {
   const state = await loadWindowState();
+  await logWindowDebug("restoreWindowState:loaded", { state });
   if (!state) {
     return;
   }
 
   try {
+    beginSuppressWindowStatePersistence();
+    await logWindowDebug("restoreWindowState:apply", state);
     await currentWindow.setSize(new LogicalSize(state.width, state.height));
     await currentWindow.setPosition(new LogicalPosition(state.x, state.y));
+    restoredWindowState = state;
     lastAppliedSize = `${state.width}x${state.height}`;
   } catch (error) {
     console.error("Unable to restore saved window state", error);
+  } finally {
+    endSuppressWindowStatePersistenceSoon();
   }
+}
+
+function resolveTargetWidth(measuredWidth: number, currentWidth: number): number {
+  if (!hasCompletedInitialLayout && restoredWindowState) {
+    return Math.max(measuredWidth, clampWidth(restoredWindowState.width));
+  }
+
+  return Math.max(measuredWidth, currentWidth);
+}
+
+function resolveTargetHeight(measuredHeight: number, currentHeight: number): number {
+  if (!hasCompletedInitialLayout && restoredWindowState) {
+    return Math.max(measuredHeight, clampHeight(restoredWindowState.height));
+  }
+
+  return Math.max(measuredHeight, currentHeight);
 }
 
 function setupWindowStatePersistence(): void {
@@ -423,6 +482,11 @@ function setupWindowStatePersistence(): void {
 }
 
 function queueWindowStatePersist(): void {
+  if (suppressWindowStatePersistence > 0) {
+    void logWindowDebug("queueWindowStatePersist:suppressed", { suppressWindowStatePersistence });
+    return;
+  }
+
   if (persistWindowStateTimer) {
     window.clearTimeout(persistWindowStateTimer);
   }
@@ -433,17 +497,80 @@ function queueWindowStatePersist(): void {
 }
 
 async function persistWindowStateFromWindow(): Promise<void> {
+  if (suppressWindowStatePersistence > 0) {
+    await logWindowDebug("persistWindowState:skip-suppressed", { suppressWindowStatePersistence });
+    return;
+  }
+
   try {
+    const scaleFactor = await currentWindow.scaleFactor();
     const position = await currentWindow.outerPosition();
-    const size = await currentWindow.outerSize();
-    await saveWindowState({
-      x: position.x,
-      y: position.y,
-      width: size.width,
-      height: size.height
+    const size = await currentWindow.innerSize();
+    const state = {
+      x: position.x / scaleFactor,
+      y: position.y / scaleFactor,
+      width: size.width / scaleFactor,
+      height: size.height / scaleFactor
+    };
+    await logWindowDebug("persistWindowState:save", {
+      scaleFactor,
+      outerX: position.x,
+      outerY: position.y,
+      innerWidth: size.width,
+      innerHeight: size.height,
+      state
     });
+    await saveWindowState(state);
+    restoredWindowState = state;
+    lastAppliedSize = `${state.width}x${state.height}`;
   } catch (error) {
     console.error("Unable to persist window state", error);
+    await logWindowDebug("persistWindowState:error", {
+      error: error instanceof Error ? error.message : String(error)
+    });
+  }
+}
+
+function measureRequiredWidth(shell: HTMLElement): number {
+  const candidates = [
+    shell.querySelector<HTMLElement>(".widget__header"),
+    shell.querySelector<HTMLElement>(".widget__footer"),
+    shell.querySelector<HTMLElement>(".widget__body"),
+    ...Array.from(shell.querySelectorAll<HTMLElement>(".provider__top, .limit-row__meta, .provider__warning"))
+  ].filter(Boolean) as HTMLElement[];
+
+  const measured = candidates.map((element) => Math.ceil(element.scrollWidth));
+  return Math.max(baseMinWidth(), ...measured);
+}
+
+async function getCurrentLogicalInnerSize(): Promise<{ width: number; height: number }> {
+  const scaleFactor = await currentWindow.scaleFactor();
+  const size = await currentWindow.innerSize();
+  return {
+    width: size.width / scaleFactor,
+    height: size.height / scaleFactor
+  };
+}
+
+function beginSuppressWindowStatePersistence(): void {
+  suppressWindowStatePersistence += 1;
+  void logWindowDebug("suppress:begin", { suppressWindowStatePersistence });
+}
+
+function endSuppressWindowStatePersistenceSoon(): void {
+  window.setTimeout(() => {
+    suppressWindowStatePersistence = Math.max(0, suppressWindowStatePersistence - 1);
+    void logWindowDebug("suppress:end", { suppressWindowStatePersistence });
+  }, 250);
+}
+
+async function logWindowDebug(event: string, payload: Record<string, unknown>): Promise<void> {
+  const timestamp = new Date().toISOString();
+  debugSequence += 1;
+  try {
+    await appendWindowDebugLog(`${timestamp} #${debugSequence} ${event} ${JSON.stringify(payload)}`);
+  } catch {
+    // Ignore debug logging failures.
   }
 }
 

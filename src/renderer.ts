@@ -9,6 +9,7 @@ const providerLabels: Record<string, string> = {
   claude: "Claude Code",
   gemini: "Gemini"
 };
+const STATUS_PREVIEW_LENGTH = 56;
 
 export function renderSnapshot(root: HTMLElement, snapshot: UsageSnapshot, text: Messages, appMetadata: AppMetadata, onRefresh: () => void, isRefreshing = false): void {
   root.innerHTML = "";
@@ -36,6 +37,23 @@ export function renderSnapshot(root: HTMLElement, snapshot: UsageSnapshot, text:
   root.appendChild(shell);
 }
 
+export function updateProviderPanel(root: HTMLElement, provider: ProviderUsage, text: Messages, updatedAt: string, isRefreshing: boolean): void {
+  const list = root.querySelector<HTMLElement>(".provider-list");
+  if (!list) {
+    return;
+  }
+
+  const nextPanel = renderProvider(provider, text);
+  const currentPanel = list.querySelector<HTMLElement>(`.provider[data-provider="${escapeAttribute(provider.provider)}"]`);
+  if (currentPanel) {
+    currentPanel.replaceWith(nextPanel);
+  } else {
+    list.appendChild(nextPanel);
+  }
+
+  updateFooterState(root, text, updatedAt, isRefreshing);
+}
+
 export function setRefreshingState(root: HTMLElement, text: Messages, isRefreshing: boolean): void {
   const shell = root.querySelector<HTMLElement>(".widget");
   if (!shell) {
@@ -57,12 +75,7 @@ export function setRefreshingState(root: HTMLElement, text: Messages, isRefreshi
     body.classList.toggle("widget__body--refreshing", isRefreshing);
   }
 
-  const footer = shell.querySelector<HTMLElement>(".widget__footer");
-  if (footer) {
-    footer.classList.toggle("widget__footer--refreshing", isRefreshing);
-    const fallbackLabel = footer.dataset.updatedLabel ?? footer.textContent ?? "";
-    footer.textContent = isRefreshing ? text.refreshing : fallbackLabel;
-  }
+  updateFooterRefreshingState(shell, text, isRefreshing);
 }
 
 export function renderLoading(root: HTMLElement, text: Messages, appMetadata: AppMetadata): void {
@@ -211,9 +224,11 @@ function createBody(isRefreshing: boolean, text: Messages): HTMLElement {
 function renderProvider(provider: ProviderUsage, text: Messages): HTMLElement {
   const item = document.createElement("article");
   item.className = `provider${provider.stale ? " provider--stale" : ""}${provider.refreshing ? " provider--refreshing" : ""}`;
+  item.dataset.provider = provider.provider;
 
   if (!provider.usage) {
     const status = provider.status ?? text.unavailable;
+    const statusPreview = truncateStatus(status);
     const isGemini = provider.provider === "gemini";
     const label5h = isGemini ? "24h" : text.limit5h;
     
@@ -225,7 +240,7 @@ function renderProvider(provider: ProviderUsage, text: Messages): HTMLElement {
       <div class="limit-row">
         <div class="limit-row__meta">
           <span class="limit-row__label">${escapeHtml(label5h)}</span>
-          <span class="limit-row__reset">${escapeHtml(status)}</span>
+          <span class="limit-row__reset" title="${escapeHtml(status)}">${escapeHtml(statusPreview)}</span>
         </div>
         <div class="meter meter--empty" aria-label="Usage unavailable">
           <span style="width: 0%"></span>
@@ -239,12 +254,12 @@ function renderProvider(provider: ProviderUsage, text: Messages): HTMLElement {
   const label5h = isGemini ? "24h" : text.limit5h;
   const resetValue = isGemini ? "23:59" : provider.usage.primary.reset;
 
-  const primary = renderLimitRow(label5h, provider.usage.primary.percent_left, resetValue, text, provider.stale || provider.refreshing);
+  const primary = renderLimitRow(label5h, provider.usage.primary.percent_left, resetValue, text, provider.stale || provider.refreshing, false);
   const weekly = provider.usage.weekly
-    ? renderLimitRow(text.weekly, provider.usage.weekly.percent_left, provider.usage.weekly.reset, text, provider.stale || provider.refreshing)
+    ? renderLimitRow(text.weekly, provider.usage.weekly.percent_left, provider.usage.weekly.reset, text, provider.stale || provider.refreshing, true)
     : "";
   const warning = provider.stale && provider.status
-    ? `<div class="provider__warning" title="${escapeHtml(provider.status)}"><span class="provider__warning-icon">!</span><span>${escapeHtml(provider.status)}</span></div>`
+    ? `<div class="provider__warning" title="${escapeHtml(provider.status)}"><span class="provider__warning-icon">!</span><span>${escapeHtml(truncateStatus(provider.status))}</span></div>`
     : "";
 
   item.innerHTML = `
@@ -259,10 +274,31 @@ function renderProvider(provider: ProviderUsage, text: Messages): HTMLElement {
   return item;
 }
 
-function renderLimitRow(label: string, rawPercent: number, reset: string, text: Messages, stale = false): string {
+function updateFooterState(root: HTMLElement, text: Messages, updatedAt: string, isRefreshing: boolean): void {
+  const footer = root.querySelector<HTMLElement>(".widget__footer");
+  if (!footer) {
+    return;
+  }
+
+  footer.dataset.updatedLabel = `${text.updated} ${formatTime(updatedAt)}`;
+  updateFooterRefreshingState(root.querySelector<HTMLElement>(".widget"), text, isRefreshing);
+}
+
+function updateFooterRefreshingState(shell: HTMLElement | null, text: Messages, isRefreshing: boolean): void {
+  const footer = shell?.querySelector<HTMLElement>(".widget__footer");
+  if (!footer) {
+    return;
+  }
+
+  footer.classList.toggle("widget__footer--refreshing", isRefreshing);
+  const fallbackLabel = footer.dataset.updatedLabel ?? footer.textContent ?? "";
+  footer.textContent = isRefreshing ? text.refreshing : fallbackLabel;
+}
+
+function renderLimitRow(label: string, rawPercent: number, reset: string, text: Messages, stale = false, isWeekly = false): string {
   const percent = clampPercent(rawPercent);
   const color = stale ? "rgb(126, 132, 144)" : usageColor(percent);
-  const localizedReset = formatResetText(reset, text.locale);
+  const localizedReset = formatResetText(reset, text.locale, isWeekly);
 
   return `
     <div class="limit-row">
@@ -328,6 +364,15 @@ function formatTime(value: string): string {
   return date.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
 }
 
+function truncateStatus(value: string): string {
+  const normalized = value.replace(/\s+/g, " ").trim();
+  if (normalized.length <= STATUS_PREVIEW_LENGTH) {
+    return normalized;
+  }
+
+  return `${normalized.slice(0, STATUS_PREVIEW_LENGTH - 1).trimEnd()}...`;
+}
+
 function escapeHtml(value: string): string {
   return value.replace(/[&<>"']/g, (char) => {
     const map: Record<string, string> = {
@@ -341,6 +386,10 @@ function escapeHtml(value: string): string {
   });
 }
 
+function escapeAttribute(value: string): string {
+  return window.CSS?.escape ? window.CSS.escape(value) : value.replace(/["\\]/g, "\\$&");
+}
+
 async function startResize(direction: ResizeDirection): Promise<void> {
   try {
     await getCurrentWindow().startResizeDragging(direction);
@@ -349,16 +398,40 @@ async function startResize(direction: ResizeDirection): Promise<void> {
   }
 }
 
-function formatResetText(value: string, locale: "en" | "es"): string {
-  const normalized = value.replace(/\s+/g, " ").trim();
+function formatResetText(value: string, locale: "en" | "es", isWeekly: boolean): string {
+  const normalized = sanitizeResetText(value);
 
-  return formatWithZone(normalized, locale)
-    ?? formatTimeAndMonthDay(normalized, locale)
-    ?? formatTimeOnly(normalized, locale)
+  return (isWeekly
+    ? formatWeekReset(normalized, locale)
+    : formatDayReset(normalized, locale))
     ?? normalized;
 }
 
-function formatWithZone(value: string, locale: "en" | "es"): string | null {
+function sanitizeResetText(value: string): string {
+  return value
+    .replace(/([A-Za-z]{3})(\d{1,2})(?=,|\s|\()/g, "$1 $2")
+    .replace(/(\d)(am|pm)(\()/gi, "$1 $2 $3")
+    .replace(/(\d)(am|pm)$/gi, "$1 $2")
+    .replace(/,\s*(\d{1,2})(am|pm)(\s*\(|$)/gi, ", $1 $2$3")
+    .replace(/\s*\([^)]+\)?$/g, "")
+    .replace(/[)|]+$/g, "")
+    .replace(/\s+/g, " ")
+    .trim();
+}
+
+function formatDayReset(value: string, locale: "en" | "es"): string | null {
+  return formatTimeOnly(value, locale)
+    ?? formatWithZone(value, locale, false)
+    ?? extractTimeFromDateTime(value, locale);
+}
+
+function formatWeekReset(value: string, locale: "en" | "es"): string | null {
+  return formatWithZone(value, locale, true)
+    ?? formatTimeAndMonthDay(value, locale)
+    ?? extractTimeAndDate(value, locale);
+}
+
+function formatWithZone(value: string, locale: "en" | "es", includeDate: boolean): string | null {
   const match = value.match(/^([A-Za-z]{3})\s*(\d{1,2}),?\s*(\d{1,2}(?::\d{2})?)\s*(am|pm)?\s*(?:\(([^)]+)\))?$/i)
     ?? value.match(/^(\d{1,2}(?::\d{2})?)\s*(am|pm)?\s*(?:\(([^)]+)\))?$/i);
 
@@ -371,7 +444,15 @@ function formatWithZone(value: string, locale: "en" | "es"): string | null {
     const formattedDate = formatMonthDay(month, Number(day), locale);
     const normalizedTime = time.includes(":") ? time : `${time}:00`;
     const formattedTime = formatClock(normalizedTime, meridiem ?? null, locale);
-    return formattedTime && formattedDate ? `${formattedTime}, ${formattedDate}` : value;
+    if (!formattedTime) {
+      return value;
+    }
+
+    if (!includeDate) {
+      return formattedTime;
+    }
+
+    return formattedDate ? `${formattedTime}, ${formattedDate}` : value;
   }
 
   const [, time, meridiem] = match;
@@ -381,24 +462,27 @@ function formatWithZone(value: string, locale: "en" | "es"): string | null {
 }
 
 function formatTimeAndMonthDay(value: string, locale: "en" | "es"): string | null {
-  const match = value.match(/^(\d{1,2}:\d{2})\s+(?:on|on\s+|,)\s*(\d{1,2})\s+([A-Za-z]{3})$/i)
-    ?? value.match(/^(\d{1,2}:\d{2})\s+(?:on|on\s+|,)\s*([A-Za-z]{3})\s+(\d{1,2})$/i);
+  const cleaned = value.replace(/\s+on\s+/i, " ").replace(/\s*,\s*/g, " ").trim();
 
-  if (!match) {
-    return null;
+  const dayMonthMatch = cleaned.match(/^(\d{1,2}:\d{2})\s+(\d{1,2})\s+([A-Za-z]{3})$/i);
+  if (dayMonthMatch) {
+    const [, time, day, month] = dayMonthMatch;
+    return formatTimeAndDate(time, month, Number(day), locale, value);
   }
 
-  const [, time, part2, part3] = match;
+  const monthDayMatch = cleaned.match(/^(\d{1,2}:\d{2})\s+([A-Za-z]{3})\s+(\d{1,2})$/i);
+  if (monthDayMatch) {
+    const [, time, month, day] = monthDayMatch;
+    return formatTimeAndDate(time, month, Number(day), locale, value);
+  }
+
+  return null;
+}
+
+function formatTimeAndDate(time: string, month: string, day: number, locale: "en" | "es", fallback: string): string {
   const formattedTime = formatClock(time, null, locale);
-  
-  let formattedDate: string | null = null;
-  if (Number.isFinite(Number(part2))) {
-    formattedDate = formatMonthDay(part3, Number(part2), locale);
-  } else {
-    formattedDate = formatMonthDay(part2, Number(part3), locale);
-  }
-
-  return formattedTime && formattedDate ? `${formattedTime}, ${formattedDate}` : value;
+  const formattedDate = formatMonthDay(month, day, locale);
+  return formattedTime && formattedDate ? `${formattedTime}, ${formattedDate}` : fallback;
 }
 
 function formatTimeOnly(value: string, locale: "en" | "es"): string | null {
@@ -408,6 +492,47 @@ function formatTimeOnly(value: string, locale: "en" | "es"): string | null {
   }
 
   return formatClock(match[1], null, locale);
+}
+
+function extractTimeFromDateTime(value: string, locale: "en" | "es"): string | null {
+  const match = value.match(/(\d{1,2}(?::\d{2})?)\s*(am|pm)?/i);
+  if (!match) {
+    return null;
+  }
+
+  const [, time, meridiem] = match;
+  const normalizedTime = time.includes(":") ? time : `${time}:00`;
+  return formatClock(normalizedTime, meridiem ?? null, locale);
+}
+
+function extractTimeAndDate(value: string, locale: "en" | "es"): string | null {
+  const timeMatch = value.match(/(\d{1,2}(?::\d{2})?)\s*(am|pm)?/i);
+  const monthDayMatch = value.match(/([A-Za-z]{3})\s*(\d{1,2})/i)
+    ?? value.match(/(\d{1,2})\s+([A-Za-z]{3})/i);
+
+  if (!timeMatch || !monthDayMatch) {
+    return null;
+  }
+
+  const [, time, meridiem] = timeMatch;
+  const normalizedTime = time.includes(":") ? time : `${time}:00`;
+  const formattedTime = formatClock(normalizedTime, meridiem ?? null, locale);
+  if (!formattedTime) {
+    return null;
+  }
+
+  let month = "";
+  let day = 0;
+  if (Number.isFinite(Number(monthDayMatch[1]))) {
+    day = Number(monthDayMatch[1]);
+    month = monthDayMatch[2];
+  } else {
+    month = monthDayMatch[1];
+    day = Number(monthDayMatch[2]);
+  }
+
+  const formattedDate = formatMonthDay(month, day, locale);
+  return formattedDate ? `${formattedTime}, ${formattedDate}` : null;
 }
 
 function formatClock(time: string, meridiem: string | null, locale: "en" | "es"): string | null {

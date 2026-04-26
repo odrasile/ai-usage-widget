@@ -2,7 +2,7 @@ import pty from "node-pty";
 import { mkdirSync, writeFileSync } from "node:fs";
 import os from "node:os";
 import path from "node:path";
-import { getRawLaunch, augmentPath } from "./platform.js";
+import { getPtyShellLaunch, augmentPath, isWindows } from "./platform.js";
 import { parseGeminiUsage } from "./parser.js";
 
 const ANSI_PATTERN = /\x1b\[[0-9;?=>]*[ -/]*[@-~]/g;
@@ -18,8 +18,6 @@ export function runGeminiUsagePty(options = {}) {
   return new Promise((resolve) => {
     let output = "";
     let settled = false;
-    let usageAttempted = false;
-    let usageCommandCount = 0;
     let authWaitExtended = false;
     let readyWaitExtended = false;
     const eventLog = [];
@@ -27,13 +25,14 @@ export function runGeminiUsagePty(options = {}) {
     let timer;
 
     try {
-      const launch = getRawLaunch("gemini");
+      const launch = getPtyShellLaunch("gemini");
       const env = augmentPath({ ...process.env });
       child = pty.spawn(launch.file, launch.args, {
         cols: 120,
         rows: 34,
         cwd: options.cwd ?? process.cwd(),
-        env
+        env,
+        ...(isWindows() ? { hide: true } : {})
       });
       eventLog.push(`${timestamp()} SPAWN gemini`);
     } catch (error) {
@@ -80,7 +79,7 @@ export function runGeminiUsagePty(options = {}) {
       }, 250);
 
       const cleanedOutput = cleanTerminalOutput(output);
-      const failureReason = ok ? "" : buildFailureReason(output, usageAttempted);
+      const failureReason = ok ? "" : buildFailureReason(output);
 
       resolve({
         ok,
@@ -167,31 +166,7 @@ function cleanTerminalOutput(value) {
     .trim();
 }
 
-function sendUsageCommand(child, usageCommandCount, eventLog) {
-  if (usageCommandCount >= 2) {
-    return false;
-  }
-
-  try {
-    eventLog.push(`${timestamp()} WRITE <ENTER>`);
-    child.write("\r");
-  } catch {
-    // Ignore prompt wake-up failures.
-  }
-
-  setTimeout(() => {
-    try {
-      eventLog.push(`${timestamp()} WRITE /usage`);
-      child.write("/usage\r");
-    } catch {
-      // Ignore write failures here and let the normal timeout path handle it.
-    }
-  }, 150);
-
-  return true;
-}
-
-function buildFailureReason(output, usageAttempted) {
+function buildFailureReason(output) {
   const cleaned = cleanTerminalOutput(output);
   if (/waiting for authentication/i.test(cleaned)) {
     return "Waiting for authentication";
@@ -199,10 +174,6 @@ function buildFailureReason(output, usageAttempted) {
 
   if (/ready\s*\(.*\)/i.test(cleaned) || /Gemini CLI/i.test(cleaned)) {
     return "Gemini prompt ready; quota not visible yet";
-  }
-
-  if (!usageAttempted) {
-    return cleaned && cleaned !== "Identity added:" ? `Prompt not ready: ${cleaned.slice(0, 140)}` : "Prompt not ready";
   }
 
   if (!cleaned) {

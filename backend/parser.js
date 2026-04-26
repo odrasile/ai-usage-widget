@@ -43,12 +43,18 @@ export function parseGeminiUsage(output) {
 }
 
 export function parseCodexStatus(output) {
-  const fiveHourPercent = findPercent(output, [/5h[^0-9]*(\d+(?:\.\d+)?)\s*%/i, /(\d+(?:\.\d+)?)\s*%[^.\n]*(?:5h|five)/i]);
-  const weeklyPercent = findPercent(output, [/weekly[^0-9]*(\d+(?:\.\d+)?)\s*%/i, /week[^0-9]*(\d+(?:\.\d+)?)\s*%/i]);
-  const reset = findLineReset(output, /5h/i);
-  const weeklyReset = findLineReset(output, /weekly|week/i);
+  const fiveHourPercent = findPercent(output, [
+    /5h(?:\s+limit|\s+remaining)?[^0-9]{0,40}(\d+(?:\.\d+)?)\s*%(?:\s*left)?/i,
+    /5h\s+remaining[^0-9]*(\d+(?:\.\d+)?)\s*%/i
+  ]);
+  const weeklyPercent = findPercent(output, [
+    /weekly(?:\s+limit|\s+remaining)?[^0-9]{0,40}(\d+(?:\.\d+)?)\s*%(?:\s*left)?/i,
+    /week(?:ly)?\s+remaining[^0-9]*(\d+(?:\.\d+)?)\s*%/i
+  ]);
+  const reset = findScopedReset(output, /5h/i);
+  const weeklyReset = findScopedReset(output, /weekly|week/i);
 
-  if (fiveHourPercent === null) {
+  if (fiveHourPercent === null || reset === "unknown") {
     return null;
   }
 
@@ -164,8 +170,22 @@ function findLineReset(output, labelPattern) {
   return resetMatch ? cleanReset(resetMatch[1]) : findReset(output);
 }
 
+function findScopedReset(output, labelPattern) {
+  const normalized = output.replace(/\r/g, " ");
+  const scoped = normalized.match(new RegExp(`${labelPattern.source}[\\s\\S]{0,160}?resets?\\s*([^)\\n\\r]+)`, "i"));
+  if (scoped?.[1]) {
+    return cleanReset(scoped[1]);
+  }
+
+  return findLineReset(output, labelPattern);
+}
+
 function cleanReset(value) {
-  return value
+  if (!value) {
+    return "unknown";
+  }
+
+  return String(value)
     .replace(/[)\]|\u2502]+$/g, "")
     .replace(/\s*[)\]|\u2502]+\s*$/g, "")
     .trim();

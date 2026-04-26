@@ -120,6 +120,12 @@ Datos a extraer:
 - porcentaje semanal
 - tiempo de reset semanal
 
+Normalizacion visual obligatoria:
+
+- reset primario visible: solo hora local en formato compacto, por ejemplo `14:49`
+- reset semanal visible: hora local + fecha corta localizada, por ejemplo `9:24, 29 abr`
+- no mostrar en UI texto crudo como `on`, `am`, `pm` o zonas tipo `(Europe/Madrid)`
+
 No usar:
 
 - `codex status`
@@ -170,10 +176,18 @@ Calculo requerido:
 percent_left = 100 - percent_used
 ```
 
+- Si en el futuro Gemini aporta reset semanal o reset dinamico, debe normalizarse con la misma regla visual comun:
+  - primario: hora local limpia
+  - semanal: hora local + fecha corta localizada
+
 Compatibilidad:
 
 - soportar tambien formatos mas antiguos basados en `remaining/total` si aparecen
 - tolerar salida limpia donde las palabras pueden quedar pegadas, por ejemplo `Currentsession`, `Currentweek`, `0%used`, `Resets2:20pm`
+- la salida visible final debe seguir la misma normalizacion visual que Codex:
+  - primario: `14:49`
+  - semanal: `9:24, 29 abr`
+- no mostrar en UI `am`, `pm` ni `(Europe/Madrid)` aunque aparezcan en el output bruto
 
 No asumir que `echo /usage | claude` o piping simple sea suficiente en todas las plataformas.
 
@@ -274,6 +288,13 @@ Reglas:
 - `primary` representa el limite principal del provider.
 - `weekly` es opcional.
 - `status` es obligatorio cuando `available` es `false`.
+- el valor interno de `reset` puede venir en formatos distintos segun provider, pero la UI debe aplicar una normalizacion comun antes de mostrarlo
+
+Contrato visual comun para resets:
+
+- limite principal (`5h`, `24h` o equivalente): mostrar solo hora local, por ejemplo `14:49`
+- limite semanal: mostrar hora local + fecha corta localizada, por ejemplo `9:24, 29 abr`
+- nunca mostrar en UI sufijos crudos como `on`, `am`, `pm`, zonas horarias entre parentesis, ni placeholders como `N/A`, salvo error real sin dato
 
 ---
 

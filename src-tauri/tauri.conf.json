@@ -14,17 +14,16 @@
       {
         "create": false,
         "title": "AI Usage Widget",
-        "width": 388,
-        "height": 188,
-        "minWidth": 338,
+        "width": 540,
+        "height": 204,
+        "minWidth": 470,
         "minHeight": 132,
         "resizable": true,
         "decorations": false,
         "transparent": true,
         "visible": false,
         "alwaysOnTop": true,
-        "skipTaskbar": true,
-        "center": true
+        "skipTaskbar": true
       }
     ],
     "security": {

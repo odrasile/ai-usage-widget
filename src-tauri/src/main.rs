@@ -3,6 +3,7 @@
 use std::env;
 use std::ffi::OsString;
 use std::fs;
+use std::io::Write;
 use std::path::{Path, PathBuf};
 use std::process::Command;
 use tauri::{
@@ -70,6 +71,24 @@ fn load_window_state(app: AppHandle) -> Result<Option<WindowState>, String> {
 #[tauri::command]
 fn save_window_state(app: AppHandle, state: WindowState) -> Result<(), String> {
     save_window_state_to_disk(&app, &state)
+}
+
+#[tauri::command]
+fn append_window_debug_log(app: AppHandle, message: String) -> Result<(), String> {
+    let log_path = window_debug_log_path(&app)?;
+    if let Some(parent) = log_path.parent() {
+        fs::create_dir_all(parent)
+            .map_err(|error| format!("Unable to create debug log directory: {error}"))?;
+    }
+
+    let mut file = fs::OpenOptions::new()
+        .create(true)
+        .append(true)
+        .open(&log_path)
+        .map_err(|error| format!("Unable to open debug log: {error}"))?;
+
+    writeln!(file, "{message}")
+        .map_err(|error| format!("Unable to append debug log: {error}"))
 }
 
 fn run_backend_snapshot(backend: BackendPaths) -> Result<serde_json::Value, String> {
@@ -305,6 +324,14 @@ fn window_state_path(app: &AppHandle) -> Result<PathBuf, String> {
     Ok(app_data_dir.join("window-state.json"))
 }
 
+fn window_debug_log_path(app: &AppHandle) -> Result<PathBuf, String> {
+    let app_data_dir = app
+        .path()
+        .app_data_dir()
+        .map_err(|error| format!("Unable to resolve app data directory: {error}"))?;
+    Ok(app_data_dir.join("window-debug.log"))
+}
+
 fn setup_tray(app: &AppHandle) -> tauri::Result<()> {
     let show = MenuItem::with_id(app, "show", "Show", true, None::<&str>)?;
     let quit = MenuItem::with_id(app, "quit", "Quit", true, None::<&str>)?;
@@ -382,7 +409,8 @@ fn main() {
             get_provider_usage,
             get_refresh_interval,
             load_window_state,
-            save_window_state
+            save_window_state,
+            append_window_debug_log
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

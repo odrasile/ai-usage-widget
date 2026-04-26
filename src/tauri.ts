@@ -34,6 +34,10 @@ export async function saveWindowState(state: StoredWindowState): Promise<void> {
   await invoke("save_window_state", { state });
 }
 
+export async function appendWindowDebugLog(message: string): Promise<void> {
+  await invoke("append_window_debug_log", { message });
+}
+
 function withTimeout<T>(promise: Promise<T>, timeoutMs: number): Promise<T> {
   return new Promise((resolve, reject) => {
     const timer = window.setTimeout(() => {

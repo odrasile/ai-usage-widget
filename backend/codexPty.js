@@ -11,6 +11,7 @@ const SINGLE_ESC_PATTERN = /\x1b[@-_]/g;
 
 export function runCodexStatusPty(options = {}) {
   const timeoutMs = options.timeoutMs ?? 25_000;
+  const settleAfterUsageMs = options.settleAfterUsageMs ?? 450;
 
   return new Promise((resolve) => {
     let output = "";
@@ -18,6 +19,7 @@ export function runCodexStatusPty(options = {}) {
     let statusAttempted = false;
     let readyTimer = null;
     let retryTimer = null;
+    let settleTimer = null;
     const eventLog = [];
     const launch = getPtyShellLaunch("codex --no-alt-screen");
     const env = augmentPath({ ...process.env });
@@ -46,6 +48,9 @@ export function runCodexStatusPty(options = {}) {
       }
       if (retryTimer) {
         clearTimeout(retryTimer);
+      }
+      if (settleTimer) {
+        clearTimeout(settleTimer);
       }
 
       try {
@@ -110,7 +115,14 @@ export function runCodexStatusPty(options = {}) {
       }
 
       if (hasCodexUsage(output)) {
-        finish(true);
+        if (settleTimer) {
+          clearTimeout(settleTimer);
+        }
+
+        settleTimer = setTimeout(() => {
+          eventLog.push(`${timestamp()} EVENT codex-usage-settled`);
+          finish(true);
+        }, settleAfterUsageMs);
       }
     });
 
