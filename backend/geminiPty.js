@@ -2,25 +2,30 @@ import pty from "node-pty";
 import { mkdirSync, writeFileSync } from "node:fs";
 import os from "node:os";
 import path from "node:path";
-import { getRawLaunch, augmentPath } from "./platform.js";
+import { getPtyShellLaunch, augmentPath } from "./platform.js";
 import { parseGeminiUsage } from "./parser.js";
 
 const ANSI_PATTERN = /\x1b\[[0-9;?]*[A-Za-z]/g;
 const CONPTY_NOISE_PATTERN = /C:\\.*node-pty\\lib\\conpty_console_list_agent\.js[\s\S]*$/i;
+const OSC_PATTERN = /\x1b\][^\x07\x1b]*(?:\x07|\x1b\\)/g;
+const SINGLE_ESC_PATTERN = /\x1b[@-_]/g;
 
 export function runGeminiUsagePty(options = {}) {
   const timeoutMs = options.timeoutMs ?? 20_000;
+  const authTimeoutMs = options.authTimeoutMs ?? 45_000;
 
   return new Promise((resolve) => {
     let output = "";
     let settled = false;
     let usageAttempted = false;
     let usageCommandCount = 0;
+    let authWaitExtended = false;
     const eventLog = [];
     let child;
+    let timer;
 
     try {
-      const launch = getRawLaunch("gemini");
+      const launch = getPtyShellLaunch("gemini");
       const env = augmentPath({ ...process.env });
       child = pty.spawn(launch.file, launch.args, {
         cols: 120,
@@ -90,7 +95,7 @@ export function runGeminiUsagePty(options = {}) {
       });
     };
 
-    const timer = setTimeout(() => finish(false), timeoutMs);
+    timer = setTimeout(() => finish(false), timeoutMs);
     const minWaitTimer = setTimeout(() => {
       if (hasGeminiUsage(output)) {
         finish(true);
@@ -100,6 +105,13 @@ export function runGeminiUsagePty(options = {}) {
     child.onData((chunk) => {
       eventLog.push(`${timestamp()} DATA ${truncate(chunk.replace(/\r/g, "\\r").replace(/\n/g, "\\n"), 220)}`);
       output += chunk;
+
+      if (!authWaitExtended && isWaitingForAuthentication(output)) {
+        authWaitExtended = true;
+        clearTimeout(timer);
+        timer = setTimeout(() => finish(false), authTimeoutMs);
+        eventLog.push(`${timestamp()} EVENT auth-wait-timeout-extended ${authTimeoutMs}ms`);
+      }
 
       if (hasQuota(output)) {
         eventLog.push(`${timestamp()} EVENT quota-detected`);
@@ -124,11 +136,17 @@ function hasQuota(output) {
   return /(\d+(?:\.\d+)?)\s*%\s*used/i.test(cleaned);
 }
 
+function isWaitingForAuthentication(output) {
+  return /waiting for authentication/i.test(cleanTerminalOutput(output));
+}
+
 function cleanTerminalOutput(value) {
   return value
+    .replace(OSC_PATTERN, "")
     .replace(ANSI_PATTERN, "")
     .replace(/\r/g, "\n")
     .replace(CONPTY_NOISE_PATTERN, "")
+    .replace(SINGLE_ESC_PATTERN, "")
     .replace(/[\u2502\u2500]+/g, " ")
     .replace(/\s+/g, " ")
     .trim();
@@ -160,6 +178,10 @@ function sendUsageCommand(child, usageCommandCount, eventLog) {
 
 function buildFailureReason(output, usageAttempted) {
   const cleaned = cleanTerminalOutput(output);
+  if (/waiting for authentication/i.test(cleaned)) {
+    return "Waiting for authentication";
+  }
+
   if (!usageAttempted) {
     return cleaned ? `Prompt not ready: ${cleaned.slice(0, 140)}` : "Prompt not ready";
   }
@@ -172,7 +194,10 @@ function buildFailureReason(output, usageAttempted) {
 }
 
 function writeDebugLog({ ok, rawOutput, cleanedOutput, failureReason, eventLog }) {
-  const logPath = path.join(process.cwd(), "gemini-debug.log");
+  const logDir = path.join(os.tmpdir(), "ai-usage-widget");
+  mkdirSync(logDir, { recursive: true });
+
+  const logPath = path.join(logDir, "gemini-debug.log");
   const body = [
     `timestamp=${new Date().toISOString()}`,
     `ok=${ok}`,

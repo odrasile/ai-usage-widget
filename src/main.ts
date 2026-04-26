@@ -1,10 +1,10 @@
 import "./styles.css";
-import { LogicalSize } from "@tauri-apps/api/dpi";
+import { LogicalPosition, LogicalSize } from "@tauri-apps/api/dpi";
 import { getCurrentWindow } from "@tauri-apps/api/window";
 import { detectLocale, getMessages } from "./i18n";
-import { renderError, renderLoading, renderSnapshot, renderTransparencyProbe } from "./renderer";
+import { renderError, renderLoading, renderSnapshot, renderTransparencyProbe, setRefreshingState } from "./renderer";
 import { Scheduler } from "./scheduler";
-import { getUsageSnapshot } from "./tauri";
+import { getUsageSnapshot, loadWindowState, saveWindowState } from "./tauri";
 import type { ProviderUsage, UsageSnapshot } from "./types";
 
 const SNAPSHOT_CACHE_KEY = "monitorai:last-snapshot";
@@ -27,19 +27,28 @@ let scheduler: Scheduler | null = null;
 const visualMode = detectVisualMode();
 let lastAppliedMinSize = "";
 let lastAppliedSize = "";
+let persistWindowStateTimer = 0;
+let windowStatePersistenceReady = false;
 
 if (transparencyProbe) {
   renderTransparencyProbe(appRoot, transparencyProbe);
   queueWindowSync();
   void ensureTransparentWindow();
 } else {
+  void startApp();
+}
+
+async function startApp(): Promise<void> {
   appRoot.classList.add(`visual-mode--${visualMode}`);
   if (latestSnapshot) {
-    renderSnapshot(appRoot, latestSnapshot, text, refreshNow, true);
+    renderSnapshot(appRoot, latestSnapshot, text, refreshNow, false);
   } else {
     renderLoading(appRoot, text);
   }
+
+  await restoreWindowState();
   queueWindowSync();
+  setupWindowStatePersistence();
   void applyWindowVisualMode();
 
   scheduler = new Scheduler(
@@ -52,26 +61,53 @@ if (transparencyProbe) {
       queueWindowSync();
     },
     (message) => {
-      renderError(appRoot, message || text.unableToRefresh, text);
+      if (latestSnapshot) {
+        const staleSnapshot: UsageSnapshot = {
+          ...latestSnapshot,
+          providers: latestSnapshot.providers.map((provider) => ({
+            ...provider,
+            available: false,
+            stale: true,
+            status: message || text.unableToRefresh
+          }))
+        };
+        latestSnapshot = staleSnapshot;
+        renderSnapshot(appRoot, staleSnapshot, text, refreshNow, false);
+      } else {
+        renderError(appRoot, message || text.unableToRefresh, text);
+      }
       queueWindowSync();
     },
-    () => {
-      if (latestSnapshot) {
-        renderSnapshot(appRoot, latestSnapshot, text, refreshNow, true);
-      } else {
-        renderLoading(appRoot, text);
-      }
-
-      queueWindowSync();
+    async () => {
+      await renderRefreshingState();
     }
   );
 
   scheduler.start();
-  window.addEventListener("beforeunload", () => scheduler?.stop());
+  window.addEventListener("beforeunload", () => {
+    scheduler?.stop();
+    void persistWindowStateFromWindow();
+  });
 }
 
 function refreshNow(): void {
+  void startManualRefresh();
+}
+
+async function startManualRefresh(): Promise<void> {
+  await renderRefreshingState();
   scheduler?.refresh();
+}
+
+async function renderRefreshingState(): Promise<void> {
+  if (latestSnapshot) {
+    setRefreshingState(appRoot, text, true);
+    await waitForPaint();
+  } else {
+    renderLoading(appRoot, text);
+    queueWindowSync();
+    await waitForPaint();
+  }
 }
 
 function queueWindowSync(): void {
@@ -162,16 +198,6 @@ async function syncWindowLayout(): Promise<void> {
   }
 }
 
-function getHorizontalPadding(element: HTMLElement): number {
-  const style = window.getComputedStyle(element);
-  return Number.parseFloat(style.paddingLeft) + Number.parseFloat(style.paddingRight);
-}
-
-function getVerticalPadding(element: HTMLElement): number {
-  const style = window.getComputedStyle(element);
-  return Number.parseFloat(style.paddingTop) + Number.parseFloat(style.paddingBottom);
-}
-
 function clampWidth(value: number): number {
   return Math.min(680, Math.max(470, value));
 }
@@ -185,7 +211,17 @@ function addWidthHeadroom(value: number): number {
 }
 
 function addHeightHeadroom(value: number): number {
-  return Math.ceil(value + 42);
+  return Math.ceil(value + 28);
+}
+
+function getHorizontalPadding(element: HTMLElement): number {
+  const style = window.getComputedStyle(element);
+  return Number.parseFloat(style.paddingLeft) + Number.parseFloat(style.paddingRight);
+}
+
+function getVerticalPadding(element: HTMLElement): number {
+  const style = window.getComputedStyle(element);
+  return Number.parseFloat(style.paddingTop) + Number.parseFloat(style.paddingBottom);
 }
 
 function detectVisualMode(): "transparent" | "linux-fallback" {
@@ -193,9 +229,29 @@ function detectVisualMode(): "transparent" | "linux-fallback" {
   return userAgent.includes("linux") ? "linux-fallback" : "transparent";
 }
 
+function waitForPaint(): Promise<void> {
+  return new Promise((resolve) => {
+    window.requestAnimationFrame(() => {
+      window.requestAnimationFrame(() => resolve());
+    });
+  });
+}
+
 function mergeSnapshotWithPrevious(snapshot: UsageSnapshot, previous: UsageSnapshot | null): UsageSnapshot {
   if (!previous) {
     return snapshot;
+  }
+
+  if (snapshot.providers.length === 0 && previous.providers.length > 0) {
+    return {
+      ...snapshot,
+      providers: previous.providers.map((provider) => ({
+        ...provider,
+        available: false,
+        stale: true,
+        status: text.usingCachedData
+      }))
+    };
   }
 
   const previousProviders = new Map(previous.providers.map((provider) => [provider.provider, provider]));
@@ -231,6 +287,63 @@ function persistSnapshot(snapshot: UsageSnapshot): void {
     window.localStorage.setItem(SNAPSHOT_CACHE_KEY, JSON.stringify(snapshot));
   } catch {
     // Ignore storage failures.
+  }
+}
+
+type StoredWindowState = {
+  x: number;
+  y: number;
+  width: number;
+  height: number;
+};
+
+async function restoreWindowState(): Promise<void> {
+  const state = await loadWindowState();
+  if (!state) {
+    return;
+  }
+
+  try {
+    await currentWindow.setSize(new LogicalSize(state.width, state.height));
+    await currentWindow.setPosition(new LogicalPosition(state.x, state.y));
+    lastAppliedSize = `${state.width}x${state.height}`;
+  } catch (error) {
+    console.error("Unable to restore saved window state", error);
+  }
+}
+
+function setupWindowStatePersistence(): void {
+  if (windowStatePersistenceReady) {
+    return;
+  }
+
+  windowStatePersistenceReady = true;
+  void currentWindow.onMoved(() => queueWindowStatePersist());
+  void currentWindow.onResized(() => queueWindowStatePersist());
+}
+
+function queueWindowStatePersist(): void {
+  if (persistWindowStateTimer) {
+    window.clearTimeout(persistWindowStateTimer);
+  }
+
+  persistWindowStateTimer = window.setTimeout(() => {
+    void persistWindowStateFromWindow();
+  }, 180);
+}
+
+async function persistWindowStateFromWindow(): Promise<void> {
+  try {
+    const position = await currentWindow.outerPosition();
+    const size = await currentWindow.outerSize();
+    await saveWindowState({
+      x: position.x,
+      y: position.y,
+      width: size.width,
+      height: size.height
+    });
+  } catch (error) {
+    console.error("Unable to persist window state", error);
   }
 }
 

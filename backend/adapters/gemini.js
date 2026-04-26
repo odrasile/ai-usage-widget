@@ -1,4 +1,5 @@
 import { runGeminiUsagePty } from "../geminiPty.js";
+import { classifyCliFailure } from "../cliFailure.js";
 import { parseGeminiUsage } from "../parser.js";
 import { execFileWithTimeout } from "../executor.js";
 
@@ -39,6 +40,11 @@ function summarizeGeminiFailure(message = "") {
   const normalized = String(message).trim();
   if (!normalized) {
     return "Gemini CLI detected; /usage unavailable";
+  }
+
+  const classified = classifyCliFailure("gemini", normalized);
+  if (classified.kind !== "unavailable") {
+    return classified.status;
   }
 
   if (/no output captured/i.test(normalized)) {

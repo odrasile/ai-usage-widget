@@ -3,7 +3,7 @@ import type { UsageSnapshot } from "./types";
 type SnapshotLoader = () => Promise<UsageSnapshot>;
 type SnapshotHandler = (snapshot: UsageSnapshot) => void;
 type ErrorHandler = (message: string) => void;
-type RefreshHandler = () => void;
+type RefreshHandler = () => void | Promise<void>;
 
 const MIN_INTERVAL_MS = 30_000;
 const MAX_INTERVAL_MS = 60_000;
@@ -45,7 +45,7 @@ export class Scheduler {
     }
 
     this.running = true;
-    this.onRefreshStart();
+    await this.onRefreshStart();
     let nextDelay = 45_000;
 
     try {

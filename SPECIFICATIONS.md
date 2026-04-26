@@ -292,6 +292,18 @@ Widget flotante con:
 - boton cerrar
 - boton ocultar a bandeja
 - icono de bandeja con opciones Show/Quit cuando la plataforma lo soporte bien
+- debe recordar entre ejecuciones su ultima posicion y su ultimo tamano en todos los sistemas operativos soportados, siempre que esos valores sigan siendo validos
+- si la posicion recordada queda fuera de pantalla o el tamano recordado es menor que el minimo requerido por el contenido actual, la app debe aplicar fallback seguro, por ejemplo centrar la ventana o crecer hasta el minimo necesario
+
+Comportamiento durante refresh manual o automatico:
+
+- Debe aplicarse de forma consistente en todos los sistemas operativos soportados.
+- Mientras una actualizacion esta en curso, la UI no debe parecer congelada ni silenciosa.
+- El ultimo snapshot valido debe permanecer visible mientras se consulta de nuevo a las CLIs.
+- El boton de refresco debe reflejar estado activo de forma clara, por ejemplo con spinner, estado deshabilitado temporalmente o ambos.
+- La cabecera o el footer deben mostrar un texto transitorio como `Actualizando...` / `Refreshing...`.
+- El contenido puede atenuarse ligeramente mientras dura el refresh, pero no debe desaparecer ni sustituirse por una pantalla vacia.
+- Si el refresh falla, debe mantenerse el ultimo estado visible y marcarse como dato desactualizado o en estado de alerta, en lugar de ocultar toda la informacion util.
 
 Contenido por provider:
 

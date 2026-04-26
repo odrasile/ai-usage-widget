@@ -14,7 +14,7 @@ export function renderSnapshot(root: HTMLElement, snapshot: UsageSnapshot, text:
   root.innerHTML = "";
 
   const shell = createShell(text, onRefresh, isRefreshing);
-  const body = createBody();
+  const body = createBody(isRefreshing, text);
 
   if (snapshot.providers.length === 0) {
     const empty = document.createElement("div");
@@ -32,14 +32,43 @@ export function renderSnapshot(root: HTMLElement, snapshot: UsageSnapshot, text:
   }
 
   shell.appendChild(body);
-  appendFooter(shell, `${text.updated} ${formatTime(snapshot.updated_at)}`);
+  appendFooter(shell, isRefreshing ? text.refreshing : `${text.updated} ${formatTime(snapshot.updated_at)}`, isRefreshing);
   root.appendChild(shell);
+}
+
+export function setRefreshingState(root: HTMLElement, text: Messages, isRefreshing: boolean): void {
+  const shell = root.querySelector<HTMLElement>(".widget");
+  if (!shell) {
+    return;
+  }
+
+  shell.classList.toggle("widget--refreshing", isRefreshing);
+
+  const refreshButton = shell.querySelector<HTMLButtonElement>(".window-refresh");
+  if (refreshButton) {
+    refreshButton.classList.toggle("window-refresh--active", isRefreshing);
+    refreshButton.disabled = isRefreshing;
+    refreshButton.setAttribute("aria-label", isRefreshing ? text.refreshing : text.refresh);
+    refreshButton.setAttribute("title", isRefreshing ? text.refreshing : text.refresh);
+  }
+
+  const body = shell.querySelector<HTMLElement>(".widget__body");
+  if (body) {
+    body.classList.toggle("widget__body--refreshing", isRefreshing);
+  }
+
+  const footer = shell.querySelector<HTMLElement>(".widget__footer");
+  if (footer) {
+    footer.classList.toggle("widget__footer--refreshing", isRefreshing);
+    const fallbackLabel = footer.dataset.updatedLabel ?? footer.textContent ?? "";
+    footer.textContent = isRefreshing ? text.refreshing : fallbackLabel;
+  }
 }
 
 export function renderLoading(root: HTMLElement, text: Messages): void {
   root.innerHTML = "";
   const shell = createShell(text, () => {}, true);
-  const body = createBody();
+  const body = createBody(false, text);
   const loading = document.createElement("div");
   loading.className = "empty state-message";
   loading.innerHTML = `
@@ -54,7 +83,7 @@ export function renderLoading(root: HTMLElement, text: Messages): void {
 export function renderError(root: HTMLElement, message: string, text: Messages): void {
   root.innerHTML = "";
   const shell = createShell(text, () => {}, false);
-  const body = createBody();
+  const body = createBody(false, text);
   const error = document.createElement("p");
   error.className = "empty";
   error.textContent = message;
@@ -90,17 +119,16 @@ export function renderTransparencyProbe(root: HTMLElement, mode: string): void {
 
 function createShell(text: Messages, onRefresh: () => void, isRefreshing: boolean): HTMLElement {
   const shell = document.createElement("section");
-  shell.className = "widget";
+  shell.className = `widget${isRefreshing ? " widget--refreshing" : ""}`;
 
   const header = document.createElement("header");
   header.className = "widget__header";
   header.setAttribute("data-tauri-drag-region", "");
   header.innerHTML = `
-    <span data-tauri-drag-region="">${escapeHtml(text.appTitle)}</span>
+    <span class="widget__title" data-tauri-drag-region="">${escapeHtml(text.appTitle)}</span>
     <div class="window-actions">
-      <span class="refresh-indicator${isRefreshing ? " refresh-indicator--active" : ""}" title="${escapeHtml(text.detecting)}" aria-hidden="true"></span>
       <button class="window-info" type="button" aria-label="${escapeHtml(text.about)}" title="${escapeHtml(text.developedBy)}">i</button>
-      <button class="window-refresh" type="button" aria-label="${escapeHtml(text.refresh)}" title="${escapeHtml(text.refresh)}">&#8635;</button>
+      <button class="window-refresh${isRefreshing ? " window-refresh--active" : ""}" type="button" aria-label="${escapeHtml(isRefreshing ? text.refreshing : text.refresh)}" title="${escapeHtml(isRefreshing ? text.refreshing : text.refresh)}"${isRefreshing ? " disabled" : ""}><span class=\"window-refresh__glyph\" aria-hidden=\"true\">&#8635;</span></button>
       <button class="window-hide" type="button" aria-label="${escapeHtml(text.hideToTray)}">_</button>
       <button class="window-close" type="button" aria-label="${escapeHtml(text.close)}">x</button>
     </div>
@@ -138,16 +166,18 @@ function createShell(text: Messages, onRefresh: () => void, isRefreshing: boolea
   return shell;
 }
 
-function appendFooter(shell: HTMLElement, value: string): void {
+function appendFooter(shell: HTMLElement, value: string, isRefreshing = false): void {
   const footer = document.createElement("footer");
-  footer.className = "widget__footer";
+  footer.className = `widget__footer${isRefreshing ? " widget__footer--refreshing" : ""}`;
+  footer.dataset.updatedLabel = value;
   footer.textContent = value;
   shell.appendChild(footer);
 }
 
-function createBody(): HTMLElement {
+function createBody(isRefreshing: boolean, text: Messages): HTMLElement {
   const body = document.createElement("div");
-  body.className = "widget__body";
+  body.className = `widget__body${isRefreshing ? " widget__body--refreshing" : ""}`;
+
   return body;
 }
 

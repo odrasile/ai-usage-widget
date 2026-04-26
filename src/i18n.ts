@@ -10,6 +10,8 @@ export type Messages = {
   resize: string;
   developedBy: string;
   detecting: string;
+  refreshing: string;
+  refreshingProviders: string;
   noProviders: string;
   updated: string;
   reset: string;
@@ -31,6 +33,8 @@ const messages: Record<Locale, Messages> = {
     resize: "Resize widget",
     developedBy: "Developed by @odrasile",
     detecting: "Detecting CLIs",
+    refreshing: "Refreshing...",
+    refreshingProviders: "Querying local CLIs...",
     noProviders: "No providers detected",
     updated: "Updated",
     reset: "Reset",
@@ -50,6 +54,8 @@ const messages: Record<Locale, Messages> = {
     resize: "Redimensionar widget",
     developedBy: "Developed by @odrasile",
     detecting: "Detectando CLIs",
+    refreshing: "Actualizando...",
+    refreshingProviders: "Consultando CLIs locales...",
     noProviders: "No se detectaron proveedores",
     updated: "Actualizado",
     reset: "Reinicio",

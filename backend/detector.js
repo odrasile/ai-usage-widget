@@ -1,5 +1,8 @@
 import { execFileWithTimeout } from "./executor.js";
-import { getLookupCommand, augmentPath } from "./platform.js";
+import { existsSync } from "node:fs";
+import os from "node:os";
+import path from "node:path";
+import { getLookupCommand, augmentPath, isWindows } from "./platform.js";
 
 const PROVIDERS = ["codex", "claude", "gemini"];
 const DETECTION_CACHE_TTL_MS = 5 * 60_000;
@@ -21,8 +24,13 @@ export async function detectProviders() {
   pendingDetection = detectProvidersUncached();
   try {
     const providers = await pendingDetection;
-    cachedProviders = providers;
-    cacheExpiresAt = Date.now() + DETECTION_CACHE_TTL_MS;
+    if (providers.length > 0) {
+      cachedProviders = providers;
+      cacheExpiresAt = Date.now() + DETECTION_CACHE_TTL_MS;
+    } else {
+      cachedProviders = null;
+      cacheExpiresAt = 0;
+    }
     return providers;
   } finally {
     pendingDetection = null;
@@ -41,8 +49,37 @@ async function detectProvidersUncached() {
     });
     if (result.ok && result.stdout.trim().length > 0) {
       detected.push(provider);
+      continue;
+    }
+
+    if (fallbackProviderExists(provider, env)) {
+      detected.push(provider);
     }
   }
 
   return detected;
+}
+
+function fallbackProviderExists(provider, env) {
+  if (isWindows()) {
+    const appData = env.APPDATA || path.join(os.homedir(), "AppData", "Roaming");
+    const localAppData = env.LOCALAPPDATA || path.join(os.homedir(), "AppData", "Local");
+    const npmDir = path.join(appData, "npm");
+    const candidates = [
+      path.join(npmDir, `${provider}.cmd`),
+      path.join(npmDir, `${provider}.ps1`),
+      path.join(npmDir, provider),
+      path.join(localAppData, "Programs", provider, `${provider}.exe`),
+      path.join(localAppData, "Programs", provider, `${provider}.cmd`)
+    ];
+
+    return candidates.some((candidate) => existsSync(candidate));
+  }
+
+  const pathEntries = String(env.PATH || "").split(":").filter(Boolean);
+  const candidates = pathEntries.flatMap((entry) => [
+    path.join(entry, provider)
+  ]);
+
+  return candidates.some((candidate) => existsSync(candidate));
 }

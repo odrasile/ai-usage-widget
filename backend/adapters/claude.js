@@ -1,4 +1,5 @@
 import { runClaudeUsagePty } from "../claudePty.js";
+import { classifyCliFailure } from "../cliFailure.js";
 import { parseClaudeUsage } from "../parser.js";
 
 export async function getClaudeUsage() {
@@ -27,6 +28,11 @@ function summarizeClaudeFailure(message = "") {
   const normalized = String(message).trim();
   if (!normalized) {
     return "Claude Code CLI detected; /usage unavailable";
+  }
+
+  const classified = classifyCliFailure("claude", normalized);
+  if (classified.kind !== "unavailable") {
+    return classified.status;
   }
 
   if (/welcome\s+back|\/init|claudecode/i.test(normalized)) {

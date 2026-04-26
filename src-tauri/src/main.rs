@@ -9,7 +9,7 @@ use tauri::{
     webview::PageLoadEvent,
     menu::{Menu, MenuItem},
     tray::{MouseButton, MouseButtonState, TrayIconBuilder, TrayIconEvent},
-    AppHandle, Manager, WebviewWindowBuilder,
+    AppHandle, LogicalPosition, LogicalSize, Manager, WebviewWindowBuilder,
 };
 
 #[cfg(windows)]
@@ -18,10 +18,34 @@ use std::os::windows::process::CommandExt;
 #[cfg(windows)]
 const CREATE_NO_WINDOW: u32 = 0x08000000;
 
+#[derive(Clone, serde::Serialize, serde::Deserialize)]
+struct WindowState {
+    x: f64,
+    y: f64,
+    width: f64,
+    height: f64,
+}
+
 #[tauri::command]
-fn get_usage_snapshot(app: AppHandle) -> Result<serde_json::Value, String> {
+async fn get_usage_snapshot(app: AppHandle) -> Result<serde_json::Value, String> {
     let project_root = project_root()?;
     let backend = resolve_backend(&app, &project_root)?;
+    tauri::async_runtime::spawn_blocking(move || run_backend_snapshot(backend))
+        .await
+        .map_err(|error| format!("Unable to join backend task: {error}"))?
+}
+
+#[tauri::command]
+fn load_window_state(app: AppHandle) -> Result<Option<WindowState>, String> {
+    load_window_state_from_disk(&app)
+}
+
+#[tauri::command]
+fn save_window_state(app: AppHandle, state: WindowState) -> Result<(), String> {
+    save_window_state_to_disk(&app, &state)
+}
+
+fn run_backend_snapshot(backend: BackendPaths) -> Result<serde_json::Value, String> {
     let node_binary = resolve_node_binary(&backend.root)?;
     let mut command = Command::new(&node_binary);
     command
@@ -185,6 +209,45 @@ fn show_main_window(app: &AppHandle) {
     }
 }
 
+fn load_window_state_from_disk(app: &AppHandle) -> Result<Option<WindowState>, String> {
+    let state_path = window_state_path(app)?;
+    if !state_path.exists() {
+        return Ok(None);
+    }
+
+    let content = fs::read_to_string(&state_path)
+        .map_err(|error| format!("Unable to read window state: {error}"))?;
+    let state = serde_json::from_str::<WindowState>(&content)
+        .map_err(|error| format!("Unable to parse window state: {error}"))?;
+
+    if state.width <= 0.0 || state.height <= 0.0 {
+        return Ok(None);
+    }
+
+    Ok(Some(state))
+}
+
+fn save_window_state_to_disk(app: &AppHandle, state: &WindowState) -> Result<(), String> {
+    let state_path = window_state_path(app)?;
+    if let Some(parent) = state_path.parent() {
+        fs::create_dir_all(parent)
+            .map_err(|error| format!("Unable to create window state directory: {error}"))?;
+    }
+
+    let content = serde_json::to_string(state)
+        .map_err(|error| format!("Unable to serialize window state: {error}"))?;
+    fs::write(&state_path, content)
+        .map_err(|error| format!("Unable to persist window state: {error}"))
+}
+
+fn window_state_path(app: &AppHandle) -> Result<PathBuf, String> {
+    let app_data_dir = app
+        .path()
+        .app_data_dir()
+        .map_err(|error| format!("Unable to resolve app data directory: {error}"))?;
+    Ok(app_data_dir.join("window-state.json"))
+}
+
 fn setup_tray(app: &AppHandle) -> tauri::Result<()> {
     let show = MenuItem::with_id(app, "show", "Show", true, None::<&str>)?;
     let quit = MenuItem::with_id(app, "quit", "Quit", true, None::<&str>)?;
@@ -231,7 +294,7 @@ fn create_main_window(app: &AppHandle) -> tauri::Result<()> {
     let mut window_config = window_config.clone();
     window_config.visible = false;
 
-    WebviewWindowBuilder::from_config(app, &window_config)?
+    let window = WebviewWindowBuilder::from_config(app, &window_config)?
         .on_page_load(|window, payload| {
             if payload.event() == PageLoadEvent::Finished {
                 let _ = window.set_background_color(Some(tauri::window::Color(0, 0, 0, 0)));
@@ -240,6 +303,11 @@ fn create_main_window(app: &AppHandle) -> tauri::Result<()> {
             }
         })
         .build()?;
+
+    if let Ok(Some(state)) = load_window_state_from_disk(app) {
+        let _ = window.set_size(LogicalSize::new(state.width, state.height));
+        let _ = window.set_position(LogicalPosition::new(state.x, state.y));
+    }
 
     Ok(())
 }
@@ -251,7 +319,7 @@ fn main() {
             create_main_window(app.handle())?;
             Ok(())
         })
-        .invoke_handler(tauri::generate_handler![get_usage_snapshot])
+        .invoke_handler(tauri::generate_handler![get_usage_snapshot, load_window_state, save_window_state])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");
 }

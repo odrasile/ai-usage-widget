@@ -1,7 +1,5 @@
 import { execFile } from "node:child_process";
-import os from "node:os";
-import path from "node:path";
-import { getLookupCommand, getShellLaunch, isWindows } from "./platform.js";
+import { augmentPath, getShellLaunch, isWindows } from "./platform.js";
 
 const ALLOWED_COMMANDS = new Set(["where.exe", "which", "codex", "claude", "gemini"]);
 
@@ -16,20 +14,7 @@ export function execFileWithTimeout(command, args = [], options = {}) {
   }
 
   const timeoutMs = options.timeoutMs ?? 8000;
-  const env = { ...process.env };
-
-  // In Linux, double-clicking AppImage often misses the user's PATH where npm globals are.
-  if (!isWindows()) {
-    const home = os.homedir();
-    const commonPaths = [
-      path.join(home, ".npm-global", "bin"),
-      path.join(home, ".local", "bin"),
-      "/usr/local/bin"
-    ];
-    
-    const currentPath = env.PATH || "";
-    env.PATH = [...commonPaths, ...currentPath.split(":")].join(":");
-  }
+  const env = augmentPath({ ...process.env, ...(options.env ?? {}) });
 
   return new Promise((resolve) => {
     let child;

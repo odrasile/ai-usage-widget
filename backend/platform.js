@@ -34,7 +34,19 @@ export function getRawLaunch(command, args = []) {
 
 export function augmentPath(env) {
   if (process.platform === "win32") {
-    return env;
+    const appData = env.APPDATA || path.join(os.homedir(), "AppData", "Roaming");
+    const localAppData = env.LOCALAPPDATA || path.join(os.homedir(), "AppData", "Local");
+    const commonPaths = [
+      path.join(appData, "npm"),
+      path.join(localAppData, "Programs", "nodejs"),
+      path.join(os.homedir(), ".cargo", "bin")
+    ];
+
+    const currentPath = env.PATH || "";
+    return {
+      ...env,
+      PATH: [...commonPaths, ...currentPath.split(";")].join(";")
+    };
   }
 
   const home = os.homedir();
