@@ -155,6 +155,10 @@ body {
   gap: 6px;
 }
 
+.window-info-wrap {
+  position: relative;
+}
+
 .window-close,
 .window-hide,
 .window-info,
@@ -180,6 +184,49 @@ body {
 .window-info:hover {
   background: rgba(255, 255, 255, 0.16);
   color: #ffffff;
+}
+
+.window-info-popover {
+  position: absolute;
+  top: calc(100% + 8px);
+  right: 0;
+  z-index: 20;
+  display: grid;
+  gap: 6px;
+  min-width: 230px;
+  padding: 10px 11px;
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  border-radius: 8px;
+  background: rgba(16, 20, 28, 0.98);
+  box-shadow: 0 14px 30px rgba(0, 0, 0, 0.3);
+  text-transform: none;
+  letter-spacing: 0;
+  cursor: default;
+}
+
+.window-info-popover[hidden] {
+  display: none;
+}
+
+.window-info-popover__title {
+  color: #f5f7fb;
+  font-size: 12px;
+  font-weight: 700;
+}
+
+.window-info-popover__row {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 12px;
+  color: #aeb7c5;
+  font-size: 12px;
+}
+
+.window-info-popover__row strong {
+  color: #f5f7fb;
+  font-weight: 600;
+  text-align: right;
 }
 
 .window-refresh:hover {
@@ -220,18 +267,18 @@ body {
   opacity: 1;
 }
 
-.widget__body--refreshing .meter {
+.provider--refreshing .meter {
   background: rgba(255, 255, 255, 0.08);
 }
 
-.widget__body--refreshing .meter span {
+.provider--refreshing .meter span {
   background: rgb(126, 132, 144) !important;
 }
 
-.widget__body--refreshing .limit-row__meta strong,
-.widget__body--refreshing .limit-row__label,
-.widget__body--refreshing .limit-row__reset,
-.widget__body--refreshing .provider__top strong {
+.provider--refreshing .limit-row__meta strong,
+.provider--refreshing .limit-row__label,
+.provider--refreshing .limit-row__reset,
+.provider--refreshing .provider__top strong {
   color: #a7adb8 !important;
 }
 

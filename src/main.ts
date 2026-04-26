@@ -3,9 +3,8 @@ import { LogicalPosition, LogicalSize } from "@tauri-apps/api/dpi";
 import { getCurrentWindow } from "@tauri-apps/api/window";
 import { detectLocale, getMessages } from "./i18n";
 import { renderError, renderLoading, renderSnapshot, renderTransparencyProbe, setRefreshingState } from "./renderer";
-import { Scheduler } from "./scheduler";
-import { getUsageSnapshot, loadWindowState, saveWindowState } from "./tauri";
-import type { ProviderUsage, UsageSnapshot } from "./types";
+import { getDetectedProviders, getProviderUsage, getRefreshInterval, loadWindowState, saveWindowState } from "./tauri";
+import type { AppMetadata, ProviderUsage, UsageSnapshot } from "./types";
 
 const SNAPSHOT_CACHE_KEY = "monitorai:last-snapshot";
 const transparencyProbe = ((import.meta as ImportMeta & {
@@ -21,14 +20,20 @@ if (!root) {
 const appRoot = root;
 
 const text = getMessages(detectLocale());
+const appMetadata: AppMetadata = {
+  author: __APP_AUTHOR__,
+  version: __APP_VERSION__,
+  build: __APP_BUILD__
+};
 let latestSnapshot: UsageSnapshot | null = loadCachedSnapshot();
 let resizeFrame = 0;
-let scheduler: Scheduler | null = null;
 const visualMode = detectVisualMode();
 let lastAppliedMinSize = "";
 let lastAppliedSize = "";
 let persistWindowStateTimer = 0;
 let windowStatePersistenceReady = false;
+let refreshTimer = 0;
+let refreshInFlight = false;
 
 if (transparencyProbe) {
   renderTransparencyProbe(appRoot, transparencyProbe);
@@ -41,73 +46,24 @@ if (transparencyProbe) {
 async function startApp(): Promise<void> {
   appRoot.classList.add(`visual-mode--${visualMode}`);
   if (latestSnapshot) {
-    renderSnapshot(appRoot, latestSnapshot, text, refreshNow, false);
+    renderSnapshot(appRoot, latestSnapshot, text, appMetadata, refreshNow, false);
   } else {
-    renderLoading(appRoot, text);
+    renderLoading(appRoot, text, appMetadata);
   }
 
   await restoreWindowState();
   queueWindowSync();
   setupWindowStatePersistence();
   void applyWindowVisualMode();
-
-  scheduler = new Scheduler(
-    getUsageSnapshot,
-    (snapshot) => {
-      const mergedSnapshot = mergeSnapshotWithPrevious(snapshot, latestSnapshot);
-      latestSnapshot = mergedSnapshot;
-      persistSnapshot(latestSnapshot);
-      renderSnapshot(appRoot, mergedSnapshot, text, refreshNow);
-      queueWindowSync();
-    },
-    (message) => {
-      if (latestSnapshot) {
-        const staleSnapshot: UsageSnapshot = {
-          ...latestSnapshot,
-          providers: latestSnapshot.providers.map((provider) => ({
-            ...provider,
-            available: false,
-            stale: true,
-            status: message || text.unableToRefresh
-          }))
-        };
-        latestSnapshot = staleSnapshot;
-        renderSnapshot(appRoot, staleSnapshot, text, refreshNow, false);
-      } else {
-        renderError(appRoot, message || text.unableToRefresh, text);
-      }
-      queueWindowSync();
-    },
-    async () => {
-      await renderRefreshingState();
-    }
-  );
-
-  scheduler.start();
+  void refreshAllProviders();
   window.addEventListener("beforeunload", () => {
-    scheduler?.stop();
+    stopRefreshTimer();
     void persistWindowStateFromWindow();
   });
 }
 
 function refreshNow(): void {
-  void startManualRefresh();
-}
-
-async function startManualRefresh(): Promise<void> {
-  await renderRefreshingState();
-  scheduler?.refresh();
-}
-
-async function renderRefreshingState(): Promise<void> {
-  if (latestSnapshot) {
-    setRefreshingState(appRoot, text, true);
-    await waitForPaint();
-  } else {
-    renderLoading(appRoot, text);
-    queueWindowSync();
-    await waitForPaint();
-  }
+  void refreshAllProviders();
 }
 
 function queueWindowSync(): void {
@@ -229,14 +185,6 @@ function detectVisualMode(): "transparent" | "linux-fallback" {
   return userAgent.includes("linux") ? "linux-fallback" : "transparent";
 }
 
-function waitForPaint(): Promise<void> {
-  return new Promise((resolve) => {
-    window.requestAnimationFrame(() => {
-      window.requestAnimationFrame(() => resolve());
-    });
-  });
-}
-
 function mergeSnapshotWithPrevious(snapshot: UsageSnapshot, previous: UsageSnapshot | null): UsageSnapshot {
   if (!previous) {
     return snapshot;
@@ -270,7 +218,10 @@ function mergeProviderWithPrevious(
   fallbackLabel: string
 ): ProviderUsage {
   if (provider.available || provider.usage || !previousProvider?.usage) {
-    return provider;
+    return {
+      ...provider,
+      refreshing: false
+    };
   }
 
   const status = provider.status ? `${fallbackLabel}. ${provider.status}` : fallbackLabel;
@@ -278,6 +229,7 @@ function mergeProviderWithPrevious(
     ...previousProvider,
     available: false,
     stale: true,
+    refreshing: false,
     status
   };
 }
@@ -288,6 +240,154 @@ function persistSnapshot(snapshot: UsageSnapshot): void {
   } catch {
     // Ignore storage failures.
   }
+}
+
+async function refreshAllProviders(): Promise<void> {
+  if (refreshInFlight) {
+    return;
+  }
+
+  refreshInFlight = true;
+  stopRefreshTimer();
+
+  try {
+    const refreshIntervalSec = await getRefreshInterval().catch(() => latestSnapshot?.refresh_interval_sec ?? 120);
+    const detectedProviders = await getDetectedProviders();
+
+    if (detectedProviders.length === 0) {
+      latestSnapshot = {
+        providers: [],
+        refresh_interval_sec: refreshIntervalSec,
+        updated_at: new Date().toISOString()
+      };
+      renderSnapshot(appRoot, latestSnapshot, text, appMetadata, refreshNow, false);
+      queueWindowSync();
+      scheduleNextRefresh(refreshIntervalSec);
+      return;
+    }
+
+    const previousByProvider = new Map((latestSnapshot?.providers ?? []).map((provider) => [provider.provider, provider]));
+    const baseProviders = detectedProviders.map((provider) => {
+      const previous = previousByProvider.get(provider);
+      return previous ? {
+        ...previous,
+        available: false,
+        stale: true,
+        refreshing: true,
+        status: previous.status ?? text.usingCachedData
+      } : {
+        provider,
+        available: false,
+        stale: true,
+        refreshing: true,
+        usage: null,
+        status: text.detecting
+      };
+    });
+
+    latestSnapshot = {
+      providers: baseProviders,
+      refresh_interval_sec: refreshIntervalSec,
+      updated_at: new Date().toISOString()
+    };
+    renderSnapshot(appRoot, latestSnapshot, text, appMetadata, refreshNow, true);
+    queueWindowSync();
+
+    await Promise.all(detectedProviders.map(async (providerName) => {
+      const providerResult = await getProviderUsage(providerName).catch((error: unknown) => {
+        const message = error instanceof Error ? error.message : String(error);
+        return {
+          provider: providerName,
+          available: false,
+          refreshing: false,
+          usage: null,
+          status: message || text.unableToRefresh
+        } as ProviderUsage;
+      });
+
+      const previous = previousByProvider.get(providerName);
+      const mergedProvider = mergeProviderWithPrevious(providerResult, previous, text.usingCachedData);
+
+      if (!latestSnapshot) {
+        return;
+      }
+
+      latestSnapshot = {
+        ...latestSnapshot,
+        updated_at: new Date().toISOString(),
+        providers: latestSnapshot.providers.map((provider) => {
+          return provider.provider === providerName ? mergedProvider : provider;
+        })
+      };
+
+      persistSnapshot(latestSnapshot);
+      renderSnapshot(appRoot, latestSnapshot, text, appMetadata, refreshNow, hasPendingRefreshingProviders(latestSnapshot.providers));
+      queueWindowSync();
+    }));
+
+    if (latestSnapshot) {
+      latestSnapshot = {
+        ...latestSnapshot,
+        refresh_interval_sec: refreshIntervalSec,
+        updated_at: new Date().toISOString()
+      };
+      persistSnapshot(latestSnapshot);
+      renderSnapshot(appRoot, latestSnapshot, text, appMetadata, refreshNow, false);
+      queueWindowSync();
+    }
+
+    scheduleNextRefresh(refreshIntervalSec);
+  } catch (error) {
+    const message = error instanceof Error ? error.message : String(error);
+    if (latestSnapshot) {
+      const staleSnapshot: UsageSnapshot = {
+        ...latestSnapshot,
+        providers: latestSnapshot.providers.map((provider) => ({
+          ...provider,
+          available: false,
+          stale: true,
+          refreshing: false,
+          status: message || text.unableToRefresh
+        }))
+      };
+      latestSnapshot = staleSnapshot;
+      renderSnapshot(appRoot, staleSnapshot, text, appMetadata, refreshNow, false);
+      queueWindowSync();
+    } else {
+      renderError(appRoot, message || text.unableToRefresh, text, appMetadata);
+      queueWindowSync();
+    }
+    scheduleNextRefresh(latestSnapshot?.refresh_interval_sec ?? 120);
+  } finally {
+    refreshInFlight = false;
+  }
+}
+
+function scheduleNextRefresh(refreshIntervalSec: number): void {
+  stopRefreshTimer();
+  const delayMs = clampRefreshInterval(refreshIntervalSec) * 1000;
+  refreshTimer = window.setTimeout(() => {
+    void refreshAllProviders();
+  }, delayMs);
+}
+
+function stopRefreshTimer(): void {
+  if (refreshTimer) {
+    window.clearTimeout(refreshTimer);
+    refreshTimer = 0;
+  }
+}
+
+function clampRefreshInterval(value: number): number {
+  if (!Number.isFinite(value)) {
+    return 120;
+  }
+
+  return Math.min(120, Math.max(30, value));
+}
+
+function hasPendingRefreshingProviders(providers: ProviderUsage[]): boolean {
+  return providers.some((provider) => provider.refreshing);
 }
 
 type StoredWindowState = {

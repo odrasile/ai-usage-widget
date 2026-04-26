@@ -5,18 +5,19 @@ import path from "node:path";
 import { getPtyShellLaunch, augmentPath } from "./platform.js";
 import { parseCodexStatus } from "./parser.js";
 
-const ANSI_PATTERN = /\x1b\[[0-9;?]*[A-Za-z]/g;
+const ANSI_PATTERN = /\x1b\[[0-9;?=>]*[ -/]*[@-~]/g;
 const OSC_PATTERN = /\x1b\][^\x07\x1b]*(?:\x07|\x1b\\)/g;
 const SINGLE_ESC_PATTERN = /\x1b[@-_]/g;
 
 export function runCodexStatusPty(options = {}) {
-  const timeoutMs = options.timeoutMs ?? 15_000;
+  const timeoutMs = options.timeoutMs ?? 25_000;
 
   return new Promise((resolve) => {
     let output = "";
     let settled = false;
-    let statusCommandCount = 0;
     let statusAttempted = false;
+    let readyTimer = null;
+    let retryTimer = null;
     const eventLog = [];
     const launch = getPtyShellLaunch("codex --no-alt-screen");
     const env = augmentPath({ ...process.env });
@@ -40,6 +41,12 @@ export function runCodexStatusPty(options = {}) {
 
       settled = true;
       clearTimeout(timer);
+      if (readyTimer) {
+        clearTimeout(readyTimer);
+      }
+      if (retryTimer) {
+        clearTimeout(retryTimer);
+      }
 
       try {
         eventLog.push(`${timestamp()} WRITE /quit`);
@@ -68,26 +75,38 @@ export function runCodexStatusPty(options = {}) {
     };
 
     const timer = setTimeout(() => finish(false), timeoutMs);
-    const retryTimers = [2_500, 5_000, 8_000].map((delay) => setTimeout(() => {
-      if (settled || hasCodexUsage(output)) {
-        return;
-      }
-
-      statusAttempted = sendStatusCommand(child, statusCommandCount) || statusAttempted;
-      if (statusAttempted) {
-        statusCommandCount += 1;
-      }
-    }, delay));
 
     child.onData((chunk) => {
       eventLog.push(`${timestamp()} DATA ${truncate(chunk.replace(/\r/g, "\\r").replace(/\n/g, "\\n"), 220)}`);
       output += chunk;
 
-      if (isReadyForStatusCommand(output) && !hasCodexUsage(output) && statusCommandCount === 0) {
-        statusAttempted = sendStatusCommand(child, statusCommandCount) || statusAttempted;
-        if (statusAttempted) {
-          statusCommandCount += 1;
+      if (!statusAttempted && isReadyForStatusCommand(output)) {
+        eventLog.push(`${timestamp()} EVENT codex-screen-ready`);
+        if (readyTimer) {
+          clearTimeout(readyTimer);
         }
+
+        readyTimer = setTimeout(() => {
+          if (settled || statusAttempted || hasCodexUsage(output)) {
+            return;
+          }
+
+          eventLog.push(`${timestamp()} EVENT send-/status`);
+          statusAttempted = sendStatusCommand(child, eventLog);
+          if (statusAttempted) {
+            retryTimer = setTimeout(() => {
+              if (settled || hasCodexUsage(output)) {
+                return;
+              }
+
+              const screen = currentCodexScreen(output);
+              if (/›\s*\/status/i.test(screen)) {
+                eventLog.push(`${timestamp()} EVENT retry-/status`);
+                sendStatusCommand(child, eventLog);
+              }
+            }, 1800);
+          }
+        }, 500);
       }
 
       if (hasCodexUsage(output)) {
@@ -97,51 +116,44 @@ export function runCodexStatusPty(options = {}) {
 
     child.onExit(() => {
       eventLog.push(`${timestamp()} EXIT`);
-      retryTimers.forEach(clearTimeout);
       finish(hasCodexUsage(output));
     });
   });
 }
 
 function isReadyForStatusCommand(output) {
-  const cleaned = cleanTerminalOutput(output);
-  if (!/OpenAI Codex/i.test(cleaned)) {
+  const screen = currentCodexScreen(output);
+  if (!/OpenAI Codex/i.test(screen)) {
     return false;
   }
 
-  if (/Booting MCP server/i.test(cleaned) || /Waiting for authentication/i.test(cleaned)) {
+  if (/Waiting for authentication/i.test(screen)) {
     return false;
   }
 
-  return /(?:^|\n)[›>]\s*$/m.test(cleaned)
-    || /Use \/skills to list available skills/i.test(cleaned);
+  const hasStableHeader = /model:\s+/i.test(screen) && /directory:\s+/i.test(screen);
+  const hasReadySignal = /(Tip:|Heads up)/i.test(screen);
+  const stillOnlyBooting = /Booting MCP server/i.test(screen) && !hasReadySignal;
+
+  if (stillOnlyBooting) {
+    return false;
+  }
+
+  return hasStableHeader && hasReadySignal;
 }
 
 function hasCodexUsage(output) {
   return parseCodexStatus(cleanTerminalOutput(output)) !== null;
 }
 
-function sendStatusCommand(child, statusCommandCount) {
-  if (statusCommandCount >= 3) {
+function sendStatusCommand(child, eventLog) {
+  try {
+    eventLog.push(`${timestamp()} WRITE /status`);
+    child.write("/status\r");
+    return true;
+  } catch {
     return false;
   }
-
-  try {
-    child.write("\r");
-  } catch {
-    // Ignore prompt wake-up failures.
-  }
-
-  setTimeout(() => {
-    try {
-      child.write("\u0015");
-      child.write("/status\r");
-    } catch {
-      // Ignore write failures here and let timeout handle it.
-    }
-  }, 250);
-
-  return true;
 }
 
 function writeDebugLog({ ok, rawOutput, cleanedOutput, failureReason, eventLog }) {
@@ -189,6 +201,7 @@ function cleanTerminalOutput(value) {
 }
 
 function buildFailureReason(output) {
+  const screen = currentCodexScreen(output);
   const cleaned = cleanTerminalOutput(output);
   if (!cleaned) {
     return "No output captured";
@@ -198,5 +211,39 @@ function buildFailureReason(output) {
     return "";
   }
 
+  if (!/OpenAI Codex/i.test(screen)) {
+    return `Codex shell not ready: ${screen || cleaned}`.slice(0, 500);
+  }
+
+  if (/Waiting for authentication/i.test(screen)) {
+    return "Waiting for authentication";
+  }
+
+  if (/Booting MCP server/i.test(screen) && !/(Tip:|Heads up)/i.test(screen)) {
+    return `Booting MCP server: ${screen}`.slice(0, 500);
+  }
+
   return cleaned;
+}
+
+function recentTerminalOutput(value, maxLength = 1400) {
+  const cleaned = cleanTerminalOutput(value);
+  return cleaned.length <= maxLength ? cleaned : cleaned.slice(-maxLength);
+}
+
+function currentCodexScreen(value) {
+  const cleaned = cleanTerminalOutput(value);
+  const markers = [
+    cleaned.lastIndexOf("╭────────────────"),
+    cleaned.lastIndexOf("│ >_ OpenAI Codex"),
+    cleaned.lastIndexOf(">_ OpenAI Codex"),
+    cleaned.lastIndexOf("OpenAI Codex")
+  ].filter((index) => index >= 0);
+
+  if (markers.length === 0) {
+    return recentTerminalOutput(cleaned);
+  }
+
+  const start = Math.max(...markers);
+  return cleaned.slice(start).trim();
 }

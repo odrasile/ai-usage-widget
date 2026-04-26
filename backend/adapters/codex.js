@@ -4,7 +4,7 @@ import { execFileWithTimeout } from "../executor.js";
 import { parseCodexStatus } from "../parser.js";
 
 export async function getCodexUsage() {
-  const result = await runCodexStatusPty({ timeoutMs: 15_000 });
+  const result = await runCodexStatusPty({ timeoutMs: 35_000 });
   const logSuffix = result.debugLogPath ? ` Log: ${result.debugLogPath}` : "";
   const parsedFromOutput = parseCodexStatus(result.stdout);
   if (parsedFromOutput) {

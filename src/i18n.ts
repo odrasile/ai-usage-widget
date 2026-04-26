@@ -7,6 +7,9 @@ export type Messages = {
   hideToTray: string;
   refresh: string;
   about: string;
+  author: string;
+  version: string;
+  build: string;
   resize: string;
   developedBy: string;
   detecting: string;
@@ -30,8 +33,11 @@ const messages: Record<Locale, Messages> = {
     hideToTray: "Hide to tray",
     refresh: "Refresh now",
     about: "About",
+    author: "Author",
+    version: "Version",
+    build: "Build",
     resize: "Resize widget",
-    developedBy: "Developed by @odrasile",
+    developedBy: "Developed by Elisardo González Agulla",
     detecting: "Detecting CLIs",
     refreshing: "Refreshing...",
     refreshingProviders: "Querying local CLIs...",
@@ -51,8 +57,11 @@ const messages: Record<Locale, Messages> = {
     hideToTray: "Ocultar a bandeja",
     refresh: "Actualizar ahora",
     about: "Informacion",
+    author: "Autor",
+    version: "Version",
+    build: "Compilacion",
     resize: "Redimensionar widget",
-    developedBy: "Developed by @odrasile",
+    developedBy: "Desarrollado por Elisardo González Agulla",
     detecting: "Detectando CLIs",
     refreshing: "Actualizando...",
     refreshingProviders: "Consultando CLIs locales...",

@@ -36,6 +36,33 @@ async fn get_usage_snapshot(app: AppHandle) -> Result<serde_json::Value, String>
 }
 
 #[tauri::command]
+async fn get_detected_providers(app: AppHandle) -> Result<Vec<String>, String> {
+    let project_root = project_root()?;
+    let backend = resolve_backend(&app, &project_root)?;
+    tauri::async_runtime::spawn_blocking(move || run_backend_detect(backend))
+        .await
+        .map_err(|error| format!("Unable to join detect task: {error}"))?
+}
+
+#[tauri::command]
+async fn get_provider_usage(app: AppHandle, provider: String) -> Result<serde_json::Value, String> {
+    let project_root = project_root()?;
+    let backend = resolve_backend(&app, &project_root)?;
+    tauri::async_runtime::spawn_blocking(move || run_backend_provider_usage(backend, provider))
+        .await
+        .map_err(|error| format!("Unable to join provider task: {error}"))?
+}
+
+#[tauri::command]
+async fn get_refresh_interval(app: AppHandle) -> Result<u64, String> {
+    let project_root = project_root()?;
+    let backend = resolve_backend(&app, &project_root)?;
+    tauri::async_runtime::spawn_blocking(move || run_backend_refresh_interval(backend))
+        .await
+        .map_err(|error| format!("Unable to join refresh interval task: {error}"))?
+}
+
+#[tauri::command]
 fn load_window_state(app: AppHandle) -> Result<Option<WindowState>, String> {
     load_window_state_from_disk(&app)
 }
@@ -46,13 +73,43 @@ fn save_window_state(app: AppHandle, state: WindowState) -> Result<(), String> {
 }
 
 fn run_backend_snapshot(backend: BackendPaths) -> Result<serde_json::Value, String> {
+    run_backend_json_command(backend, "snapshot", None)
+}
+
+fn run_backend_detect(backend: BackendPaths) -> Result<Vec<String>, String> {
+    let value = run_backend_json_command(backend, "detect", None)?;
+    serde_json::from_value(value).map_err(|error| format!("Invalid detect JSON: {error}"))
+}
+
+fn run_backend_provider_usage(backend: BackendPaths, provider: String) -> Result<serde_json::Value, String> {
+    run_backend_json_command(backend, "provider", Some(provider))
+}
+
+fn run_backend_refresh_interval(backend: BackendPaths) -> Result<u64, String> {
+    let value = run_backend_json_command(backend, "refresh-interval", None)?;
+    let interval = value
+        .get("refresh_interval_sec")
+        .and_then(|entry| entry.as_u64())
+        .ok_or_else(|| "Invalid refresh interval JSON".to_string())?;
+    Ok(interval)
+}
+
+fn run_backend_json_command(
+    backend: BackendPaths,
+    command_name: &str,
+    provider: Option<String>,
+) -> Result<serde_json::Value, String> {
     let node_binary = resolve_node_binary(&backend.root)?;
     let mut command = Command::new(&node_binary);
     command
         .arg(&backend.entry)
-        .arg("snapshot")
+        .arg(command_name)
         .arg(&backend.root)
         .current_dir(&backend.root);
+
+    if let Some(provider) = provider {
+        command.arg(provider);
+    }
 
     #[cfg(windows)]
     command.creation_flags(CREATE_NO_WINDOW);
@@ -319,7 +376,14 @@ fn main() {
             create_main_window(app.handle())?;
             Ok(())
         })
-        .invoke_handler(tauri::generate_handler![get_usage_snapshot, load_window_state, save_window_state])
+        .invoke_handler(tauri::generate_handler![
+            get_usage_snapshot,
+            get_detected_providers,
+            get_provider_usage,
+            get_refresh_interval,
+            load_window_state,
+            save_window_state
+        ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");
 }

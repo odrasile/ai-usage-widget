@@ -2,17 +2,18 @@ import pty from "node-pty";
 import { mkdirSync, writeFileSync } from "node:fs";
 import os from "node:os";
 import path from "node:path";
-import { getPtyShellLaunch, augmentPath } from "./platform.js";
+import { getRawLaunch, augmentPath } from "./platform.js";
 import { parseGeminiUsage } from "./parser.js";
 
-const ANSI_PATTERN = /\x1b\[[0-9;?]*[A-Za-z]/g;
+const ANSI_PATTERN = /\x1b\[[0-9;?=>]*[ -/]*[@-~]/g;
 const CONPTY_NOISE_PATTERN = /C:\\.*node-pty\\lib\\conpty_console_list_agent\.js[\s\S]*$/i;
 const OSC_PATTERN = /\x1b\][^\x07\x1b]*(?:\x07|\x1b\\)/g;
 const SINGLE_ESC_PATTERN = /\x1b[@-_]/g;
 
 export function runGeminiUsagePty(options = {}) {
-  const timeoutMs = options.timeoutMs ?? 20_000;
+  const timeoutMs = options.timeoutMs ?? 30_000;
   const authTimeoutMs = options.authTimeoutMs ?? 45_000;
+  const readyTimeoutMs = options.readyTimeoutMs ?? Math.max(timeoutMs, 35_000);
 
   return new Promise((resolve) => {
     let output = "";
@@ -20,12 +21,13 @@ export function runGeminiUsagePty(options = {}) {
     let usageAttempted = false;
     let usageCommandCount = 0;
     let authWaitExtended = false;
+    let readyWaitExtended = false;
     const eventLog = [];
     let child;
     let timer;
 
     try {
-      const launch = getPtyShellLaunch("gemini");
+      const launch = getRawLaunch("gemini");
       const env = augmentPath({ ...process.env });
       child = pty.spawn(launch.file, launch.args, {
         cols: 120,
@@ -113,6 +115,13 @@ export function runGeminiUsagePty(options = {}) {
         eventLog.push(`${timestamp()} EVENT auth-wait-timeout-extended ${authTimeoutMs}ms`);
       }
 
+      if (!readyWaitExtended && showsReadyPrompt(output)) {
+        readyWaitExtended = true;
+        clearTimeout(timer);
+        timer = setTimeout(() => finish(false), readyTimeoutMs);
+        eventLog.push(`${timestamp()} EVENT ready-timeout-extended ${readyTimeoutMs}ms`);
+      }
+
       if (hasQuota(output)) {
         eventLog.push(`${timestamp()} EVENT quota-detected`);
         finish(true);
@@ -140,6 +149,11 @@ function isWaitingForAuthentication(output) {
   return /waiting for authentication/i.test(cleanTerminalOutput(output));
 }
 
+function showsReadyPrompt(output) {
+  const cleaned = cleanTerminalOutput(output);
+  return /ready\s*\(.*\)/i.test(cleaned) || /Gemini CLI/i.test(cleaned);
+}
+
 function cleanTerminalOutput(value) {
   return value
     .replace(OSC_PATTERN, "")
@@ -147,6 +161,7 @@ function cleanTerminalOutput(value) {
     .replace(/\r/g, "\n")
     .replace(CONPTY_NOISE_PATTERN, "")
     .replace(SINGLE_ESC_PATTERN, "")
+    .replace(/(?:^|\s)[><?][a-z0-9;?:\\/_-]+/gi, " ")
     .replace(/[\u2502\u2500]+/g, " ")
     .replace(/\s+/g, " ")
     .trim();
@@ -182,8 +197,12 @@ function buildFailureReason(output, usageAttempted) {
     return "Waiting for authentication";
   }
 
+  if (/ready\s*\(.*\)/i.test(cleaned) || /Gemini CLI/i.test(cleaned)) {
+    return "Gemini prompt ready; quota not visible yet";
+  }
+
   if (!usageAttempted) {
-    return cleaned ? `Prompt not ready: ${cleaned.slice(0, 140)}` : "Prompt not ready";
+    return cleaned && cleaned !== "Identity added:" ? `Prompt not ready: ${cleaned.slice(0, 140)}` : "Prompt not ready";
   }
 
   if (!cleaned) {

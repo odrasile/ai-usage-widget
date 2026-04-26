@@ -1,4 +1,4 @@
-import type { ProviderUsage, UsageSnapshot } from "./types";
+import type { AppMetadata, ProviderUsage, UsageSnapshot } from "./types";
 import { getCurrentWindow } from "@tauri-apps/api/window";
 import type { Messages } from "./i18n";
 
@@ -10,10 +10,10 @@ const providerLabels: Record<string, string> = {
   gemini: "Gemini"
 };
 
-export function renderSnapshot(root: HTMLElement, snapshot: UsageSnapshot, text: Messages, onRefresh: () => void, isRefreshing = false): void {
+export function renderSnapshot(root: HTMLElement, snapshot: UsageSnapshot, text: Messages, appMetadata: AppMetadata, onRefresh: () => void, isRefreshing = false): void {
   root.innerHTML = "";
 
-  const shell = createShell(text, onRefresh, isRefreshing);
+  const shell = createShell(text, appMetadata, onRefresh, isRefreshing);
   const body = createBody(isRefreshing, text);
 
   if (snapshot.providers.length === 0) {
@@ -65,9 +65,9 @@ export function setRefreshingState(root: HTMLElement, text: Messages, isRefreshi
   }
 }
 
-export function renderLoading(root: HTMLElement, text: Messages): void {
+export function renderLoading(root: HTMLElement, text: Messages, appMetadata: AppMetadata): void {
   root.innerHTML = "";
-  const shell = createShell(text, () => {}, true);
+  const shell = createShell(text, appMetadata, () => {}, true);
   const body = createBody(false, text);
   const loading = document.createElement("div");
   loading.className = "empty state-message";
@@ -80,9 +80,9 @@ export function renderLoading(root: HTMLElement, text: Messages): void {
   root.appendChild(shell);
 }
 
-export function renderError(root: HTMLElement, message: string, text: Messages): void {
+export function renderError(root: HTMLElement, message: string, text: Messages, appMetadata: AppMetadata): void {
   root.innerHTML = "";
-  const shell = createShell(text, () => {}, false);
+  const shell = createShell(text, appMetadata, () => {}, false);
   const body = createBody(false, text);
   const error = document.createElement("p");
   error.className = "empty";
@@ -117,7 +117,7 @@ export function renderTransparencyProbe(root: HTMLElement, mode: string): void {
   root.appendChild(probe);
 }
 
-function createShell(text: Messages, onRefresh: () => void, isRefreshing: boolean): HTMLElement {
+function createShell(text: Messages, appMetadata: AppMetadata, onRefresh: () => void, isRefreshing: boolean): HTMLElement {
   const shell = document.createElement("section");
   shell.className = `widget${isRefreshing ? " widget--refreshing" : ""}`;
 
@@ -127,7 +127,15 @@ function createShell(text: Messages, onRefresh: () => void, isRefreshing: boolea
   header.innerHTML = `
     <span class="widget__title" data-tauri-drag-region="">${escapeHtml(text.appTitle)}</span>
     <div class="window-actions">
-      <button class="window-info" type="button" aria-label="${escapeHtml(text.about)}" title="${escapeHtml(text.developedBy)}">i</button>
+      <div class="window-info-wrap">
+        <button class="window-info" type="button" aria-label="${escapeHtml(text.about)}" title="${escapeHtml(text.about)}" aria-expanded="false">i</button>
+        <div class="window-info-popover" hidden>
+          <div class="window-info-popover__title">${escapeHtml(text.about)}</div>
+          <div class="window-info-popover__row"><span>${escapeHtml(text.author)}</span><strong>${escapeHtml(appMetadata.author)}</strong></div>
+          <div class="window-info-popover__row"><span>${escapeHtml(text.version)}</span><strong>${escapeHtml(appMetadata.version)}</strong></div>
+          <div class="window-info-popover__row"><span>${escapeHtml(text.build)}</span><strong>${escapeHtml(appMetadata.build)}</strong></div>
+        </div>
+      </div>
       <button class="window-refresh${isRefreshing ? " window-refresh--active" : ""}" type="button" aria-label="${escapeHtml(isRefreshing ? text.refreshing : text.refresh)}" title="${escapeHtml(isRefreshing ? text.refreshing : text.refresh)}"${isRefreshing ? " disabled" : ""}><span class=\"window-refresh__glyph\" aria-hidden=\"true\">&#8635;</span></button>
       <button class="window-hide" type="button" aria-label="${escapeHtml(text.hideToTray)}">_</button>
       <button class="window-close" type="button" aria-label="${escapeHtml(text.close)}">x</button>
@@ -150,6 +158,25 @@ function createShell(text: Messages, onRefresh: () => void, isRefreshing: boolea
   header.querySelector(".window-refresh")?.addEventListener("click", () => {
     onRefresh();
   });
+  const infoButton = header.querySelector<HTMLButtonElement>(".window-info");
+  const infoPopover = header.querySelector<HTMLElement>(".window-info-popover");
+  if (infoButton && infoPopover) {
+    const closeInfo = () => {
+      infoPopover.hidden = true;
+      infoButton.setAttribute("aria-expanded", "false");
+    };
+    infoButton.addEventListener("click", (event) => {
+      event.stopPropagation();
+      const willOpen = infoPopover.hidden;
+      infoPopover.hidden = !willOpen;
+      infoButton.setAttribute("aria-expanded", willOpen ? "true" : "false");
+    });
+    shell.addEventListener("click", (event) => {
+      if (!(event.target as HTMLElement).closest(".window-info-wrap")) {
+        closeInfo();
+      }
+    });
+  }
 
   const resizeHandle = document.createElement("button");
   resizeHandle.className = "widget__resize";
@@ -183,7 +210,7 @@ function createBody(isRefreshing: boolean, text: Messages): HTMLElement {
 
 function renderProvider(provider: ProviderUsage, text: Messages): HTMLElement {
   const item = document.createElement("article");
-  item.className = `provider${provider.stale ? " provider--stale" : ""}`;
+  item.className = `provider${provider.stale ? " provider--stale" : ""}${provider.refreshing ? " provider--refreshing" : ""}`;
 
   if (!provider.usage) {
     const status = provider.status ?? text.unavailable;
@@ -212,9 +239,9 @@ function renderProvider(provider: ProviderUsage, text: Messages): HTMLElement {
   const label5h = isGemini ? "24h" : text.limit5h;
   const resetValue = isGemini ? "23:59" : provider.usage.primary.reset;
 
-  const primary = renderLimitRow(label5h, provider.usage.primary.percent_left, resetValue, text, provider.stale);
+  const primary = renderLimitRow(label5h, provider.usage.primary.percent_left, resetValue, text, provider.stale || provider.refreshing);
   const weekly = provider.usage.weekly
-    ? renderLimitRow(text.weekly, provider.usage.weekly.percent_left, provider.usage.weekly.reset, text, provider.stale)
+    ? renderLimitRow(text.weekly, provider.usage.weekly.percent_left, provider.usage.weekly.reset, text, provider.stale || provider.refreshing)
     : "";
   const warning = provider.stale && provider.status
     ? `<div class="provider__warning" title="${escapeHtml(provider.status)}"><span class="provider__warning-icon">!</span><span>${escapeHtml(provider.status)}</span></div>`

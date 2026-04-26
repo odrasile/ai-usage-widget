@@ -1,7 +1,7 @@
 import fs from "node:fs";
 import path from "node:path";
 
-const DEFAULT_INTERVAL_SEC = 45;
+const DEFAULT_INTERVAL_SEC = 120;
 
 export function readConfig(projectRoot = process.cwd()) {
   const configPath = path.join(projectRoot, "config.json");
@@ -25,5 +25,5 @@ function clampInterval(value) {
     return DEFAULT_INTERVAL_SEC;
   }
 
-  return Math.min(60, Math.max(30, value));
+  return Math.min(120, Math.max(30, value));
 }

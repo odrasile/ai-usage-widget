@@ -1,7 +1,7 @@
 import { invoke } from "@tauri-apps/api/core";
-import type { UsageSnapshot } from "./types";
+import type { ProviderUsage, UsageSnapshot } from "./types";
 
-const SNAPSHOT_TIMEOUT_MS = 20_000;
+const SNAPSHOT_TIMEOUT_MS = 45_000;
 
 export type StoredWindowState = {
   x: number;
@@ -12,6 +12,18 @@ export type StoredWindowState = {
 
 export async function getUsageSnapshot(): Promise<UsageSnapshot> {
   return withTimeout(invoke<UsageSnapshot>("get_usage_snapshot"), SNAPSHOT_TIMEOUT_MS);
+}
+
+export async function getDetectedProviders(): Promise<string[]> {
+  return withTimeout(invoke<string[]>("get_detected_providers"), SNAPSHOT_TIMEOUT_MS);
+}
+
+export async function getProviderUsage(provider: string): Promise<ProviderUsage> {
+  return withTimeout(invoke<ProviderUsage>("get_provider_usage", { provider }), SNAPSHOT_TIMEOUT_MS);
+}
+
+export async function getRefreshInterval(): Promise<number> {
+  return withTimeout(invoke<number>("get_refresh_interval"), SNAPSHOT_TIMEOUT_MS);
 }
 
 export async function loadWindowState(): Promise<StoredWindowState | null> {

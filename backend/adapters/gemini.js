@@ -2,8 +2,13 @@ import { runGeminiUsagePty } from "../geminiPty.js";
 import { classifyCliFailure } from "../cliFailure.js";
 import { parseGeminiUsage } from "../parser.js";
 import { execFileWithTimeout } from "../executor.js";
+import { isWindows } from "../platform.js";
 
 export async function getGeminiUsage() {
+  if (!isWindows()) {
+    return getGeminiUsageFromPty();
+  }
+
   // Try non-interactive mode with a simple probe prompt.
   // This is often enough to trigger a quota check or show the status line.
   const nonInteractiveResult = await execFileWithTimeout("gemini", ["-p", "hi"], { timeoutMs: 10_000 });
@@ -15,7 +20,11 @@ export async function getGeminiUsage() {
   }
 
   // Fallback to PTY if needed
-  const result = await runGeminiUsagePty({ timeoutMs: 15_000 });
+  return getGeminiUsageFromPty();
+}
+
+async function getGeminiUsageFromPty() {
+  const result = await runGeminiUsagePty({ timeoutMs: 35_000, authTimeoutMs: 50_000 });
   const logSuffix = result.debugLogPath ? ` Log: ${result.debugLogPath}` : "";
 
   if (!result.ok) {

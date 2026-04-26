@@ -263,7 +263,7 @@ Snapshot completo:
 ```json
 {
   "providers": [],
-  "refresh_interval_sec": 45,
+  "refresh_interval_sec": 120,
   "updated_at": "2026-04-23T16:00:00.000Z"
 }
 ```
@@ -300,9 +300,11 @@ Comportamiento durante refresh manual o automatico:
 - Debe aplicarse de forma consistente en todos los sistemas operativos soportados.
 - Mientras una actualizacion esta en curso, la UI no debe parecer congelada ni silenciosa.
 - El ultimo snapshot valido debe permanecer visible mientras se consulta de nuevo a las CLIs.
+- La actualizacion debe resolverse por provider y no esperar a que todas las CLIs terminen para repintar la UI.
+- Cada provider debe actualizar su componente visual en cuanto llegue su nuevo resultado, aunque otros providers sigan pendientes.
 - El boton de refresco debe reflejar estado activo de forma clara, por ejemplo con spinner, estado deshabilitado temporalmente o ambos.
 - La cabecera o el footer deben mostrar un texto transitorio como `Actualizando...` / `Refreshing...`.
-- El contenido puede atenuarse ligeramente mientras dura el refresh, pero no debe desaparecer ni sustituirse por una pantalla vacia.
+- El provider que siga pendiente puede atenuarse ligeramente o mostrarse en gris, pero no debe desaparecer ni bloquear la visualizacion de los providers ya actualizados.
 - Si el refresh falla, debe mantenerse el ultimo estado visible y marcarse como dato desactualizado o en estado de alerta, en lugar de ocultar toda la informacion util.
 
 Contenido por provider:
@@ -407,9 +409,9 @@ El texto del porcentaje debe usar el mismo color que su barra.
 
 ## Actualizacion
 
-- refresco cada 30 a 60 segundos
-- valor por defecto: 45 segundos
-- ejecucion secuencial
+- refresco cada 30 a 120 segundos
+- valor por defecto: 120 segundos
+- actualizacion incremental por provider, sin esperar al provider mas lento para repintar los demas
 - tolerancia a errores
 - no bloquear UI
 - durante refresco, mantener datos anteriores visibles y mostrar indicador discreto
@@ -423,11 +425,11 @@ Archivo local opcional en la raiz:
 
 ```json
 {
-  "refresh_interval_sec": 45
+  "refresh_interval_sec": 120
 }
 ```
 
-El valor debe limitarse entre 30 y 60 segundos.
+El valor debe limitarse entre 30 y 120 segundos.
 
 ---
 
