@@ -44,11 +44,11 @@ export function parseGeminiUsage(output) {
 
 export function parseCodexStatus(output) {
   const fiveHourPercent = findPercent(output, [
-    /5h(?:\s+limit|\s+remaining)?[^0-9]{0,40}(\d+(?:\.\d+)?)\s*%(?:\s*left)?/i,
+    /5h(?:\s+limit|\s+remaining)?[^0-9]{0,100}(\d+(?:\.\d+)?)\s*%(?:\s*left)?/i,
     /5h\s+remaining[^0-9]*(\d+(?:\.\d+)?)\s*%/i
   ]);
   const weeklyPercent = findPercent(output, [
-    /weekly(?:\s+limit|\s+remaining)?[^0-9]{0,40}(\d+(?:\.\d+)?)\s*%(?:\s*left)?/i,
+    /week(?:ly)?(?:\s+limit|\s+remaining)?[^0-9]{0,100}(\d+(?:\.\d+)?)\s*%(?:\s*left)?/i,
     /week(?:ly)?\s+remaining[^0-9]*(\d+(?:\.\d+)?)\s*%/i
   ]);
   const reset = findScopedReset(output, /5h/i);
@@ -166,13 +166,13 @@ function findLineReset(output, labelPattern) {
     return findReset(output);
   }
 
-  const resetMatch = line.match(/resets?\s+([^)]+)/i);
+  const resetMatch = line.match(/(?:resets?|rese(?:t?s?)?)(?:\s+at|\s+in|:)?\s*([^)\n\r]+)/i);
   return resetMatch ? cleanReset(resetMatch[1]) : findReset(output);
 }
 
 function findScopedReset(output, labelPattern) {
   const normalized = output.replace(/\r/g, " ");
-  const scoped = normalized.match(new RegExp(`${labelPattern.source}[\\s\\S]{0,160}?resets?\\s*([^)\\n\\r]+)`, "i"));
+  const scoped = normalized.match(new RegExp(`(?:${labelPattern.source})[\\s\\S]{0,160}?(?:resets?|rese(?:t?s?)?)(?:\\s+at|\\s+in|:)?\\s*([^)\\n\\r]+)`, "i"));
   if (scoped?.[1]) {
     return cleanReset(scoped[1]);
   }

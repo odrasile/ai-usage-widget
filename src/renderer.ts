@@ -560,6 +560,7 @@ function formatClock(time: string, meridiem: string | null, locale: "en" | "es")
   return new Intl.DateTimeFormat(localeForIntl(locale), {
     hour: "numeric",
     minute: "2-digit",
+    hour12: false,
     timeZone: "UTC"
   }).format(date);
 }
