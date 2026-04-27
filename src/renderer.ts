@@ -24,8 +24,9 @@ export function renderSnapshot(
 ): void {
   root.innerHTML = "";
 
-  const shell = createShell(text, appMetadata, onRefresh, onConfigSave, currentConfig, isRefreshing);
+  const shell = createShell(text, appMetadata, onRefresh, onConfigSave, currentConfig, isRefreshing, snapshot.providers);
   const body = createBody(isRefreshing, text);
+  const visibleProviders = filterVisibleProviders(snapshot.providers, currentConfig.provider_visibility);
 
   if (snapshot.providers.length === 0) {
     const empty = document.createElement("div");
@@ -35,11 +36,19 @@ export function renderSnapshot(
       <span>${escapeHtml(text.noProviders)}</span>
     `;
     body.appendChild(empty);
+  } else if (visibleProviders.length === 0) {
+    const empty = document.createElement("div");
+    empty.className = "empty state-message";
+    empty.innerHTML = `
+      <span class="state-icon" aria-hidden="true"></span>
+      <span>${escapeHtml(text.noVisibleProviders)}</span>
+    `;
+    body.appendChild(empty);
   } else {
     const list = document.createElement("div");
     list.className = "provider-list";
     const previousByProvider = new Map((previousSnapshot?.providers ?? []).map(p => [p.provider, p]));
-    snapshot.providers.forEach((provider) => {
+    visibleProviders.forEach((provider) => {
       list.appendChild(renderProvider(provider, text, currentConfig.view_mode, previousByProvider.get(provider.provider)));
     });
     body.appendChild(list);
@@ -50,9 +59,24 @@ export function renderSnapshot(
   root.appendChild(shell);
 }
 
-export function updateProviderPanel(root: HTMLElement, provider: ProviderUsage, text: Messages, updatedAt: string, isRefreshing: boolean, viewMode: ViewMode, previousProvider?: ProviderUsage): void {
+export function updateProviderPanel(
+  root: HTMLElement,
+  provider: ProviderUsage,
+  text: Messages,
+  updatedAt: string,
+  isRefreshing: boolean,
+  viewMode: ViewMode,
+  isVisible: boolean,
+  previousProvider?: ProviderUsage
+): void {
+  if (!isVisible) {
+    updateFooterState(root, text, updatedAt, isRefreshing);
+    return;
+  }
+
   const list = root.querySelector<HTMLElement>(".provider-list");
   if (!list) {
+    updateFooterState(root, text, updatedAt, isRefreshing);
     return;
   }
 
@@ -93,7 +117,7 @@ export function setRefreshingState(root: HTMLElement, text: Messages, isRefreshi
 
 export function renderLoading(root: HTMLElement, text: Messages, appMetadata: AppMetadata, currentConfig?: AppConfig): void {
   root.innerHTML = "";
-  const shell = createShell(text, appMetadata, () => {}, () => {}, currentConfig || { refresh_interval_min: 2, view_mode: "consumed" }, true);
+  const shell = createShell(text, appMetadata, () => {}, () => {}, currentConfig || { refresh_interval_min: 2, view_mode: "consumed", provider_visibility: {} }, true, []);
   const body = createBody(false, text);
   const loading = document.createElement("div");
   loading.className = "empty state-message";
@@ -108,7 +132,7 @@ export function renderLoading(root: HTMLElement, text: Messages, appMetadata: Ap
 
 export function renderError(root: HTMLElement, message: string, text: Messages, appMetadata: AppMetadata, currentConfig?: AppConfig): void {
   root.innerHTML = "";
-  const shell = createShell(text, appMetadata, () => {}, () => {}, currentConfig || { refresh_interval_min: 2, view_mode: "consumed" }, false);
+  const shell = createShell(text, appMetadata, () => {}, () => {}, currentConfig || { refresh_interval_min: 2, view_mode: "consumed", provider_visibility: {} }, false, []);
   const body = createBody(false, text);
   const error = document.createElement("p");
   error.className = "empty";
@@ -149,7 +173,8 @@ function createShell(
   onRefresh: () => void,
   onConfigSave: (config: AppConfig) => void,
   currentConfig: AppConfig,
-  isRefreshing: boolean
+  isRefreshing: boolean,
+  currentProviders: ProviderUsage[]
 ): HTMLElement {
   const shell = document.createElement("section");
   shell.className = `widget${isRefreshing ? " widget--refreshing" : ""}`;
@@ -178,6 +203,14 @@ function createShell(
               <option value="free">${escapeHtml(text.modeFree)}</option>
             </select>
           </div>
+          ${currentProviders.length > 0 ? `
+            <div class="window-config-popover__group">
+              <span class="window-config-popover__group-title">${escapeHtml(text.providerVisibility)}</span>
+              <div class="config-provider-list">
+                ${renderProviderVisibilityControls(currentConfig.provider_visibility, currentProviders)}
+              </div>
+            </div>
+          ` : ""}
           <div class="window-config-popover__row">
             <span>${escapeHtml(text.language)}</span>
             <select class="config-language-select">
@@ -278,7 +311,8 @@ function createShell(
         onConfigSave({
           refresh_interval_min: Math.min(60, Math.max(1, parseInt(refreshInput.value, 10) || 2)),
           view_mode: viewModeSelect.value as any,
-          locale: languageSelect.value as any
+          locale: languageSelect.value as any,
+          provider_visibility: collectProviderVisibility(configPopover, currentConfig.provider_visibility)
         });
         closeConfig();
       }
@@ -312,6 +346,43 @@ function appendFooter(shell: HTMLElement, value: string, isRefreshing = false): 
   footer.dataset.updatedLabel = value;
   footer.textContent = value;
   shell.appendChild(footer);
+}
+
+function filterVisibleProviders(providers: ProviderUsage[], providerVisibility: Record<string, boolean> | undefined): ProviderUsage[] {
+  return providers.filter((provider) => providerVisibility?.[provider.provider] !== false);
+}
+
+function renderProviderVisibilityControls(
+  providerVisibility: Record<string, boolean> | undefined,
+  providers: ProviderUsage[]
+): string {
+  if (providers.length === 0) {
+    return "";
+  }
+
+  return providers.map((provider) => {
+    const checked = providerVisibility?.[provider.provider] !== false ? "checked" : "";
+    return `
+      <label class="config-provider-toggle">
+        <input class="config-provider-toggle__input" type="checkbox" data-provider="${escapeHtml(provider.provider)}" ${checked}>
+        <span>${escapeHtml(providerLabels[provider.provider] ?? provider.provider)}</span>
+      </label>
+    `;
+  }).join("");
+}
+
+function collectProviderVisibility(
+  root: HTMLElement,
+  existingVisibility: Record<string, boolean> | undefined
+): Record<string, boolean> {
+  const nextVisibility: Record<string, boolean> = { ...(existingVisibility ?? {}) };
+  root.querySelectorAll<HTMLInputElement>(".config-provider-toggle__input").forEach((input) => {
+    const provider = input.dataset.provider;
+    if (provider) {
+      nextVisibility[provider] = input.checked;
+    }
+  });
+  return nextVisibility;
 }
 
 function createBody(isRefreshing: boolean, text: Messages): HTMLElement {

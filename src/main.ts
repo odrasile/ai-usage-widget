@@ -27,7 +27,8 @@ const appMetadata: AppMetadata = {
 
 let appConfig: AppConfig = {
   refresh_interval_min: 2,
-  view_mode: "consumed"
+  view_mode: "consumed",
+  provider_visibility: {}
 };
 
 let text = getMessages(detectLocale());
@@ -48,6 +49,23 @@ let debugSequence = 0;
 let zoomPendingSync = 1.0;
 
 const sessionBaselines = new Map<string, { primary: number; weekly?: number }>();
+
+function isProviderVisible(provider: string, visibility: Record<string, boolean> | undefined): boolean {
+  return visibility?.[provider] !== false;
+}
+
+function normalizeProviderVisibility(
+  visibility: Record<string, boolean> | undefined,
+  providers: string[]
+): Record<string, boolean> {
+  const normalized = { ...(visibility ?? {}) };
+  providers.forEach((provider) => {
+    if (normalized[provider] === undefined) {
+      normalized[provider] = true;
+    }
+  });
+  return normalized;
+}
 
 if (transparencyProbe) {
   renderTransparencyProbe(appRoot, transparencyProbe);
@@ -94,7 +112,11 @@ function refreshNow(): void {
 }
 
 async function onConfigSave(newConfig: AppConfig): Promise<void> {
-  appConfig = newConfig;
+  const visibleProviders = latestSnapshot?.providers.map((provider) => provider.provider) ?? [];
+  appConfig = {
+    ...newConfig,
+    provider_visibility: normalizeProviderVisibility(newConfig.provider_visibility, visibleProviders)
+  };
   if (appConfig.locale) {
     text = getMessages(appConfig.locale);
   }
@@ -334,6 +356,10 @@ async function refreshAllProviders(): Promise<void> {
 
   try {
     const detectedProviders = await getDetectedProviders();
+    appConfig = {
+      ...appConfig,
+      provider_visibility: normalizeProviderVisibility(appConfig.provider_visibility, detectedProviders)
+    };
 
     if (detectedProviders.length === 0) {
       latestSnapshot = {
@@ -432,7 +458,16 @@ async function refreshAllProviders(): Promise<void> {
         }
       } : undefined;
 
-      updateProviderPanel(appRoot, nextProvider, text, latestSnapshot.updated_at, stillRefreshing, appConfig.view_mode, virtualPrevious);
+      updateProviderPanel(
+        appRoot,
+        nextProvider,
+        text,
+        latestSnapshot.updated_at,
+        stillRefreshing,
+        appConfig.view_mode,
+        isProviderVisible(nextProvider.provider, appConfig.provider_visibility),
+        virtualPrevious
+      );
       setRefreshingState(appRoot, text, stillRefreshing);
       queueWindowSync();
     };

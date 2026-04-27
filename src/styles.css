@@ -242,6 +242,19 @@ body {
   font-weight: 500;
 }
 
+.window-config-popover__group {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  color: #f5f7fb;
+  font-size: 12px;
+  font-weight: 500;
+}
+
+.window-config-popover__group-title {
+  color: #f5f7fb;
+}
+
 .window-info-popover__row strong {
   color: #f5f7fb;
   font-weight: 600;
@@ -279,6 +292,32 @@ body {
 .config-language-select option {
   background-color: rgb(26, 31, 41) !important;
   color: #ffffff !important;
+}
+
+.config-provider-list {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  max-height: 132px;
+  overflow: auto;
+  padding-right: 2px;
+}
+
+.config-provider-toggle {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  color: #f5f7fb;
+  cursor: pointer;
+  user-select: none;
+}
+
+.config-provider-toggle__input {
+  width: 14px;
+  height: 14px;
+  accent-color: #62b8ff;
+  margin: 0;
+  flex-shrink: 0;
 }
 
 .config-save-button {

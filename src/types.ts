@@ -32,6 +32,7 @@ export type AppConfig = {
   refresh_interval_min: number;
   view_mode: ViewMode;
   locale?: Locale;
+  provider_visibility: Record<string, boolean>;
 };
 
 export type UsageSnapshot = {

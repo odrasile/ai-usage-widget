@@ -2,6 +2,7 @@
 
 use std::env;
 use std::ffi::OsString;
+use std::collections::HashMap;
 use std::fs;
 use std::io::Write;
 use std::path::{Path, PathBuf};
@@ -34,6 +35,8 @@ struct WindowState {
 struct AppConfig {
     refresh_interval_min: u64,
     view_mode: String,
+    #[serde(default)]
+    provider_visibility: HashMap<String, bool>,
 }
 
 #[tauri::command]
@@ -393,6 +396,7 @@ fn load_app_config_from_disk(app: &AppHandle) -> Result<AppConfig, String> {
         return Ok(AppConfig {
             refresh_interval_min: 2,
             view_mode: "consumed".to_string(),
+            provider_visibility: HashMap::new(),
         });
     }
 

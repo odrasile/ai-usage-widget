@@ -27,12 +27,14 @@ export type Messages = {
   refreshInterval: string;
   minutes: string;
   displayMode: string;
+  providerVisibility: string;
   language: string;
   modeConsumed: string;
   modeFree: string;
   appTitleConsumed: string;
   appTitleFree: string;
   save: string;
+  noVisibleProviders: string;
   usage5h: string;
   free5h: string;
   usageWeekly: string;
@@ -67,12 +69,14 @@ const messages: Record<Locale, Messages> = {
     refreshInterval: "Refresh Interval",
     minutes: "min",
     displayMode: "Display Mode",
+    providerVisibility: "Visible providers",
     language: "Language",
     modeConsumed: "Consumed Usage",
     modeFree: "Free Resources",
     appTitleConsumed: "AI Usage (Consumed)",
     appTitleFree: "AI Usage (Free)",
     save: "Save",
+    noVisibleProviders: "No visible providers",
     usage5h: "5h Usage",
     free5h: "5h Free",
     usageWeekly: "Weekly Usage",
@@ -105,12 +109,14 @@ const messages: Record<Locale, Messages> = {
     refreshInterval: "Intervalo de Refresco",
     minutes: "min",
     displayMode: "Modo de Visualización",
+    providerVisibility: "Proveedores visibles",
     language: "Idioma",
     modeConsumed: "Uso Consumido",
     modeFree: "Recursos Libres",
     appTitleConsumed: "Uso AI (Consumo)",
     appTitleFree: "Uso AI (Libre)",
     save: "Guardar",
+    noVisibleProviders: "No hay proveedores visibles",
     usage5h: "Uso 5h",
     free5h: "Libre 5h",
     usageWeekly: "Uso Semanal",
