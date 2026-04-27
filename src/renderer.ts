@@ -260,16 +260,20 @@ function createShell(
 
   if (infoButton && infoPopover) {
     const closeInfo = () => {
-      infoPopover.hidden = true;
+      hideFloatingPopover(infoPopover);
       infoButton.setAttribute("aria-expanded", "false");
     };
     infoButton.addEventListener("click", (event) => {
       event.stopPropagation();
       const willOpen = infoPopover.hidden;
-      infoPopover.hidden = !willOpen;
+      if (willOpen) {
+        openFloatingPopover(infoPopover, infoButton);
+      } else {
+        closeInfo();
+      }
       infoButton.setAttribute("aria-expanded", willOpen ? "true" : "false");
       if (willOpen && configPopover) {
-        configPopover.hidden = true;
+        hideFloatingPopover(configPopover);
         configButton?.setAttribute("aria-expanded", "false");
       }
     });
@@ -291,17 +295,21 @@ function createShell(
     if (languageSelect) languageSelect.value = currentConfig.locale || text.locale;
 
     const closeConfig = () => {
-      configPopover.hidden = true;
+      hideFloatingPopover(configPopover);
       configButton.setAttribute("aria-expanded", "false");
     };
 
     configButton.addEventListener("click", (event) => {
       event.stopPropagation();
       const willOpen = configPopover.hidden;
-      configPopover.hidden = !willOpen;
+      if (willOpen) {
+        openFloatingPopover(configPopover, configButton);
+      } else {
+        closeConfig();
+      }
       configButton.setAttribute("aria-expanded", willOpen ? "true" : "false");
       if (willOpen && infoPopover) {
-        infoPopover.hidden = true;
+        hideFloatingPopover(infoPopover);
         infoButton?.setAttribute("aria-expanded", "false");
       }
     });
@@ -346,6 +354,46 @@ function appendFooter(shell: HTMLElement, value: string, isRefreshing = false): 
   footer.dataset.updatedLabel = value;
   footer.textContent = value;
   shell.appendChild(footer);
+}
+
+function openFloatingPopover(popover: HTMLElement, anchor: HTMLElement): void {
+  popover.hidden = false;
+  popover.style.visibility = "hidden";
+  popover.style.left = "0px";
+  popover.style.top = "0px";
+  positionFloatingPopover(popover, anchor);
+  popover.style.visibility = "visible";
+}
+
+function hideFloatingPopover(popover: HTMLElement): void {
+  popover.hidden = true;
+  popover.style.visibility = "";
+  popover.style.left = "";
+  popover.style.top = "";
+}
+
+function positionFloatingPopover(popover: HTMLElement, anchor: HTMLElement): void {
+  const viewportPadding = 12;
+  const gap = 8;
+  const anchorRect = anchor.getBoundingClientRect();
+  const popoverRect = popover.getBoundingClientRect();
+
+  const maxLeft = Math.max(viewportPadding, window.innerWidth - popoverRect.width - viewportPadding);
+  let left = anchorRect.right - popoverRect.width;
+  left = Math.min(Math.max(left, viewportPadding), maxLeft);
+
+  let top = anchorRect.bottom + gap;
+  if (top + popoverRect.height > window.innerHeight - viewportPadding) {
+    top = anchorRect.top - popoverRect.height - gap;
+  }
+
+  const maxTop = Math.max(viewportPadding, window.innerHeight - popoverRect.height - viewportPadding);
+  top = Math.min(Math.max(top, viewportPadding), maxTop);
+
+  popover.style.left = `${Math.round(left)}px`;
+  popover.style.top = `${Math.round(top)}px`;
+  popover.style.right = "auto";
+  popover.style.bottom = "auto";
 }
 
 function filterVisibleProviders(providers: ProviderUsage[], providerVisibility: Record<string, boolean> | undefined): ProviderUsage[] {

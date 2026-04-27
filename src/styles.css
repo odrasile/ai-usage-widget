@@ -190,22 +190,16 @@ body {
   color: #ffffff;
 }
 
-.window-info-popover {
-  right: -84px;
-}
-
-.window-config-popover {
-  right: -112px;
-}
-
 .window-info-popover,
 .window-config-popover {
-  position: absolute;
-  top: calc(100% + 8px);
+  position: fixed;
   z-index: 20;
   display: grid;
   gap: 12px;
   min-width: 280px;
+  max-width: calc(100vw - 24px);
+  max-height: calc(100vh - 24px);
+  overflow: auto;
   padding: 14px 15px;
   border: 1px solid rgba(255, 255, 255, 0.12);
   border-radius: 8px;
@@ -244,7 +238,7 @@ body {
 
 .window-config-popover__group {
   display: flex;
-  flex-direction: column;
+  flex-direction: row;
   gap: 8px;
   color: #f5f7fb;
   font-size: 12px;
