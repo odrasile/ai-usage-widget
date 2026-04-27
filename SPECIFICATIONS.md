@@ -363,12 +363,55 @@ Widget flotante con:
 - fondo semi-transparente
 - cabecera arrastrable
 - boton de informacion
+- boton de configuracion (tuerca ⚙) para abrir el panel de ajustes
 - boton de refresco manual para forzar actualizacion de todas las CLIs
 - boton cerrar
 - boton ocultar a bandeja
 - icono de bandeja con opciones Show/Quit cuando la plataforma lo soporte bien
-- debe recordar entre ejecuciones su ultima posicion y su ultimo tamano en todos los sistemas operativos soportados, siempre que esos valores sigan siendo validos
+- debe recordar entre ejecuciones su ultima posicion, su ultimo tamano y su nivel de zoom en todos los sistemas operativos soportados, siempre que esos valores sigan siendo validos
 - si la posicion recordada queda fuera de pantalla o el tamano recordado es menor que el minimo requerido por el contenido actual, la app debe aplicar fallback seguro, por ejemplo centrar la ventana o crecer hasta el minimo necesario
+
+### Configuracion y Ajustes
+
+El widget incluye un panel de configuracion accesible mediante un icono de tuerca (⚙) en la cabecera. Este panel ha sido diseñado para ser robusto y legible en todos los entornos de escritorio soportados:
+
+- **Intervalo de Refresco**: Permite establecer la frecuencia de actualización automática entre 1 y 60 minutos (por defecto 2 minutos).
+- **Idioma**: Permite cambiar la interfaz entre Español e Inglés. El cambio se aplica de forma inmediata en toda la aplicación.
+- **Modo de Visualización**: Define el enfoque narrativo y visual de los datos:
+  - **Uso Consumido**: Enfoque tradicional. Las barras crecen de izquierda a derecha (0% a 100%). Las etiquetas cambian a "Uso 5h" / "Uso Semanal". El color escala de Verde (bajo uso) a Rojo (uso crítico).
+  - **Recursos Libres**: Enfoque de capacidad. Las barras representan el espacio disponible; comienzan llenas y se vacían hacia la izquierda a medida que se consume el recurso. Las etiquetas cambian a "Libre 5h" / "Libre Semanal". El color escala de Verde (mucha capacidad libre) a Rojo (poca capacidad libre).
+- **Diseño y Visibilidad**:
+  - **Dimensiones**: Ancho ampliado a 280px para garantizar que las etiquetas de texto largo sean plenamente legibles.
+  - **Posicionamiento Inteligente**: El panel utiliza un desplazamiento negativo calculado respecto a su botón de activación. Esto asegura que, independientemente de la posición del botón en la cabecera, el diálogo se mantenga siempre dentro de los límites visibles del widget, evitando desbordamientos por el lateral izquierdo.
+  - **Estilo Dark Mode**: Implementación de un tema oscuro forzado para evitar inconsistencias con los temas nativos del sistema (especialmente en Linux/WebKitGTK). Utiliza fondos sólidos oscuros (`rgb(16, 20, 28)`), textos de alto contraste (`#f5f7fb`) y selectores con apariencia personalizada y flecha SVG integrada.
+- **Persistencia**: Los ajustes se guardan localmente y persisten entre sesiones. Al abrir el panel, se muestran los valores actuales cargados.
+
+### Escalado y Zoom
+
+El widget permite ajustar su escala visual para adaptarse a diferentes resoluciones de pantalla y preferencias del usuario, manteniendo la integridad del layout y la facilidad de lectura.
+
+- **Controles**:
+  - **Teclado**: `Ctrl` + `+` (Windows/Linux) o `Cmd` + `+` (macOS) para aumentar; `Ctrl/Cmd` + `-` para disminuir; `Ctrl/Cmd` + `0` para restablecer al 100%.
+  - **Raton**: `Ctrl/Cmd` + rueda del raton hacia arriba (aumentar) / abajo (disminuir).
+- **Rango**: Desde 50% hasta 200%, en pasos del 10% (0.1).
+- **Persistencia**: El nivel de zoom se guarda junto con el estado de la ventana (posicion y tamano) y se restaura automaticamente al iniciar la aplicacion.
+
+#### Comportamiento del Layout y Ventana
+
+1.  **Mantenimiento de Proporciones (Aspect Ratio)**:
+    - Al cambiar el zoom, la ventana de la aplicacion debe redimensionarse proporcionalmente al factor de escala aplicado.
+    - Si el usuario ha redimensionado manualmente la ventana para que sea mas ancha o alta, el zoom debe respetar esa proporcion relativa en lugar de saltar a un tamano minimo.
+2.  **Sincronizacion Dinamica**:
+    - La ventana de Tauri debe ajustarse de forma síncrona con el cambio visual del contenido.
+    - Se utiliza una medicion "limpia" (poniendo temporalmente el contenedor en altura automatica) para asegurar que se captura el tamano real del contenido incluyendo margenes, gaps y paddings.
+3.  **Integridad Visual (No Solapamiento)**:
+    - El footer (`Actualizado...`) tiene prioridad visual y no debe quedar nunca oculto por los paneles de los providers.
+    - Se asegura mediante CSS (`flex-shrink: 0`) y una gestion correcta de los limites de la ventana.
+4.  **Limites de Seguridad Escalados**:
+    - Los limites de tamano de la ventana (`clamping`) se multiplican por el factor de zoom actual.
+    - **Minimos**: Reducidos para permitir widgets compactos en escalas bajas (ej. 320px de ancho).
+    - **Maximos**: Ampliados significativamente (ej. hasta 1600px de altura) para evitar que el contenido se corte o se solape al usar niveles altos de zoom (200%) con multiples providers.
+    - La ventana nunca sera mas pequeña que lo que el contenido escalado requiere para ser visible.
 
 Comportamiento durante refresh manual o automatico:
 
@@ -469,16 +512,25 @@ Deteccion:
 
 ## Colores de uso
 
-Las barras deben comunicar severidad por porcentaje restante.
+Las barras deben comunicar severidad por porcentaje restante mediante una interpolación suave dividida en tres tramos de "salud":
 
-Escala recomendada:
+- **Tramo de Seguridad (0% a 45% de uso)**: Transición de **Verde** (`#4fc978`) a **Amarillo** (`#e5d85c`).
+- **Tramo de Aviso (45% a 75% de uso)**: Transición de **Amarillo** (`#e5d85c`) a **Naranja** (`#f2a33a`).
+- **Tramo Crítico (75% a 100% de uso)**: Transición de **Naranja** (`#f2a33a`) a **Rojo** (`#df3f3f`).
 
-- 100%: verde
-- 55%: amarillo
-- 25%: naranja
-- 0%: rojo
+El texto del porcentaje debe usar el mismo color calculado para su barra.
 
-El texto del porcentaje debe usar el mismo color que su barra.
+### Tramo Delta (Consumo en Sesión)
+
+Para proporcionar feedback sobre el consumo inmediato, cada barra puede mostrar un "tramo delta" con un pulso animado:
+
+- **Función**: Representa exclusivamente el incremento de consumo ocurrido **durante la sesión actual** de la aplicación.
+- **Línea de Base de Sesión (Session Baseline)**: Al arrancar la aplicación, el primer valor válido obtenido (ya sea de la caché o de la primera consulta real) se registra internamente como el punto de referencia. En este estado inicial **no se muestra ningún delta**.
+- **Activación**: El tramo delta solo aparece cuando una lectura posterior detecta un incremento en el uso respecto a la línea de base de la sesión. 
+- **Modo de Visualización**:
+  - En **Uso Consumido**: El delta se añade a la derecha de la barra sólida, indicando el crecimiento del gasto.
+  - En **Recursos Libres**: El delta ocupa el espacio que acaba de ser "vaciado" a la derecha de la reserva restante.
+- **Actualización de Base**: Si se detecta un reinicio de cuota (el uso baja drásticamente respecto a la base), el sistema actualiza automáticamente la línea de base al nuevo valor mínimo para empezar a contar el consumo de la nueva cuota desde cero.
 
 ---
 

@@ -1,4 +1,4 @@
-import type { AppMetadata, ProviderUsage, UsageSnapshot } from "./types";
+import type { AppConfig, AppMetadata, ProviderUsage, UsageSnapshot, ViewMode } from "./types";
 import { getCurrentWindow } from "@tauri-apps/api/window";
 import type { Messages } from "./i18n";
 
@@ -11,10 +11,20 @@ const providerLabels: Record<string, string> = {
 };
 const STATUS_PREVIEW_LENGTH = 56;
 
-export function renderSnapshot(root: HTMLElement, snapshot: UsageSnapshot, text: Messages, appMetadata: AppMetadata, onRefresh: () => void, isRefreshing = false): void {
+export function renderSnapshot(
+  root: HTMLElement,
+  snapshot: UsageSnapshot,
+  text: Messages,
+  appMetadata: AppMetadata,
+  onRefresh: () => void,
+  onConfigSave: (config: AppConfig) => void,
+  currentConfig: AppConfig,
+  isRefreshing = false,
+  previousSnapshot?: UsageSnapshot | null
+): void {
   root.innerHTML = "";
 
-  const shell = createShell(text, appMetadata, onRefresh, isRefreshing);
+  const shell = createShell(text, appMetadata, onRefresh, onConfigSave, currentConfig, isRefreshing);
   const body = createBody(isRefreshing, text);
 
   if (snapshot.providers.length === 0) {
@@ -28,7 +38,10 @@ export function renderSnapshot(root: HTMLElement, snapshot: UsageSnapshot, text:
   } else {
     const list = document.createElement("div");
     list.className = "provider-list";
-    snapshot.providers.forEach((provider) => list.appendChild(renderProvider(provider, text)));
+    const previousByProvider = new Map((previousSnapshot?.providers ?? []).map(p => [p.provider, p]));
+    snapshot.providers.forEach((provider) => {
+      list.appendChild(renderProvider(provider, text, currentConfig.view_mode, previousByProvider.get(provider.provider)));
+    });
     body.appendChild(list);
   }
 
@@ -37,13 +50,13 @@ export function renderSnapshot(root: HTMLElement, snapshot: UsageSnapshot, text:
   root.appendChild(shell);
 }
 
-export function updateProviderPanel(root: HTMLElement, provider: ProviderUsage, text: Messages, updatedAt: string, isRefreshing: boolean): void {
+export function updateProviderPanel(root: HTMLElement, provider: ProviderUsage, text: Messages, updatedAt: string, isRefreshing: boolean, viewMode: ViewMode, previousProvider?: ProviderUsage): void {
   const list = root.querySelector<HTMLElement>(".provider-list");
   if (!list) {
     return;
   }
 
-  const nextPanel = renderProvider(provider, text);
+  const nextPanel = renderProvider(provider, text, viewMode, previousProvider);
   const currentPanel = list.querySelector<HTMLElement>(`.provider[data-provider="${escapeAttribute(provider.provider)}"]`);
   if (currentPanel) {
     currentPanel.replaceWith(nextPanel);
@@ -78,9 +91,9 @@ export function setRefreshingState(root: HTMLElement, text: Messages, isRefreshi
   updateFooterRefreshingState(shell, text, isRefreshing);
 }
 
-export function renderLoading(root: HTMLElement, text: Messages, appMetadata: AppMetadata): void {
+export function renderLoading(root: HTMLElement, text: Messages, appMetadata: AppMetadata, currentConfig?: AppConfig): void {
   root.innerHTML = "";
-  const shell = createShell(text, appMetadata, () => {}, true);
+  const shell = createShell(text, appMetadata, () => {}, () => {}, currentConfig || { refresh_interval_min: 2, view_mode: "consumed" }, true);
   const body = createBody(false, text);
   const loading = document.createElement("div");
   loading.className = "empty state-message";
@@ -93,9 +106,9 @@ export function renderLoading(root: HTMLElement, text: Messages, appMetadata: Ap
   root.appendChild(shell);
 }
 
-export function renderError(root: HTMLElement, message: string, text: Messages, appMetadata: AppMetadata): void {
+export function renderError(root: HTMLElement, message: string, text: Messages, appMetadata: AppMetadata, currentConfig?: AppConfig): void {
   root.innerHTML = "";
-  const shell = createShell(text, appMetadata, () => {}, false);
+  const shell = createShell(text, appMetadata, () => {}, () => {}, currentConfig || { refresh_interval_min: 2, view_mode: "consumed" }, false);
   const body = createBody(false, text);
   const error = document.createElement("p");
   error.className = "empty";
@@ -130,16 +143,51 @@ export function renderTransparencyProbe(root: HTMLElement, mode: string): void {
   root.appendChild(probe);
 }
 
-function createShell(text: Messages, appMetadata: AppMetadata, onRefresh: () => void, isRefreshing: boolean): HTMLElement {
+function createShell(
+  text: Messages,
+  appMetadata: AppMetadata,
+  onRefresh: () => void,
+  onConfigSave: (config: AppConfig) => void,
+  currentConfig: AppConfig,
+  isRefreshing: boolean
+): HTMLElement {
   const shell = document.createElement("section");
   shell.className = `widget${isRefreshing ? " widget--refreshing" : ""}`;
 
   const header = document.createElement("header");
   header.className = "widget__header";
   header.setAttribute("data-tauri-drag-region", "");
+  
+  const displayTitle = currentConfig.view_mode === "consumed" ? text.appTitleConsumed : text.appTitleFree;
+
   header.innerHTML = `
-    <span class="widget__title" data-tauri-drag-region="">${escapeHtml(text.appTitle)}</span>
+    <span class="widget__title" data-tauri-drag-region="">${escapeHtml(displayTitle)}</span>
     <div class="window-actions">
+      <div class="window-config-wrap">
+        <button class="window-config" type="button" aria-label="${escapeHtml(text.config)}" title="${escapeHtml(text.config)}" aria-expanded="false">⚙</button>
+        <div class="window-config-popover" hidden>
+          <div class="window-config-popover__title">${escapeHtml(text.config)}</div>
+          <div class="window-config-popover__row">
+            <span>${escapeHtml(text.refreshInterval)} (${escapeHtml(text.minutes)})</span>
+            <input type="number" class="config-refresh-input" min="1" max="60" step="1" value="2">
+          </div>
+          <div class="window-config-popover__row">
+            <span>${escapeHtml(text.displayMode)}</span>
+            <select class="config-view-mode-select">
+              <option value="consumed">${escapeHtml(text.modeConsumed)}</option>
+              <option value="free">${escapeHtml(text.modeFree)}</option>
+            </select>
+          </div>
+          <div class="window-config-popover__row">
+            <span>${escapeHtml(text.language)}</span>
+            <select class="config-language-select">
+              <option value="en">English</option>
+              <option value="es">Español</option>
+            </select>
+          </div>
+          <button class="config-save-button" type="button">${escapeHtml(text.save)}</button>
+        </div>
+      </div>
       <div class="window-info-wrap">
         <button class="window-info" type="button" aria-label="${escapeHtml(text.about)}" title="${escapeHtml(text.about)}" aria-expanded="false">i</button>
         <div class="window-info-popover" hidden>
@@ -171,8 +219,12 @@ function createShell(text: Messages, appMetadata: AppMetadata, onRefresh: () => 
   header.querySelector(".window-refresh")?.addEventListener("click", () => {
     onRefresh();
   });
+
+  const configButton = header.querySelector<HTMLButtonElement>(".window-config");
+  const configPopover = header.querySelector<HTMLElement>(".window-config-popover");
   const infoButton = header.querySelector<HTMLButtonElement>(".window-info");
   const infoPopover = header.querySelector<HTMLElement>(".window-info-popover");
+
   if (infoButton && infoPopover) {
     const closeInfo = () => {
       infoPopover.hidden = true;
@@ -183,10 +235,58 @@ function createShell(text: Messages, appMetadata: AppMetadata, onRefresh: () => 
       const willOpen = infoPopover.hidden;
       infoPopover.hidden = !willOpen;
       infoButton.setAttribute("aria-expanded", willOpen ? "true" : "false");
+      if (willOpen && configPopover) {
+        configPopover.hidden = true;
+        configButton?.setAttribute("aria-expanded", "false");
+      }
     });
     shell.addEventListener("click", (event) => {
       if (!(event.target as HTMLElement).closest(".window-info-wrap")) {
         closeInfo();
+      }
+    });
+  }
+
+  if (configButton && configPopover) {
+    const refreshInput = configPopover.querySelector<HTMLInputElement>(".config-refresh-input");
+    const viewModeSelect = configPopover.querySelector<HTMLSelectElement>(".config-view-mode-select");
+    const languageSelect = configPopover.querySelector<HTMLSelectElement>(".config-language-select");
+    const saveButton = configPopover.querySelector<HTMLButtonElement>(".config-save-button");
+
+    if (refreshInput) refreshInput.value = currentConfig.refresh_interval_min.toString();
+    if (viewModeSelect) viewModeSelect.value = currentConfig.view_mode;
+    if (languageSelect) languageSelect.value = currentConfig.locale || text.locale;
+
+    const closeConfig = () => {
+      configPopover.hidden = true;
+      configButton.setAttribute("aria-expanded", "false");
+    };
+
+    configButton.addEventListener("click", (event) => {
+      event.stopPropagation();
+      const willOpen = configPopover.hidden;
+      configPopover.hidden = !willOpen;
+      configButton.setAttribute("aria-expanded", willOpen ? "true" : "false");
+      if (willOpen && infoPopover) {
+        infoPopover.hidden = true;
+        infoButton?.setAttribute("aria-expanded", "false");
+      }
+    });
+
+    saveButton?.addEventListener("click", () => {
+      if (refreshInput && viewModeSelect && languageSelect) {
+        onConfigSave({
+          refresh_interval_min: Math.min(60, Math.max(1, parseInt(refreshInput.value, 10) || 2)),
+          view_mode: viewModeSelect.value as any,
+          locale: languageSelect.value as any
+        });
+        closeConfig();
+      }
+    });
+
+    shell.addEventListener("click", (event) => {
+      if (!(event.target as HTMLElement).closest(".window-config-wrap")) {
+        closeConfig();
       }
     });
   }
@@ -221,7 +321,7 @@ function createBody(isRefreshing: boolean, text: Messages): HTMLElement {
   return body;
 }
 
-function renderProvider(provider: ProviderUsage, text: Messages): HTMLElement {
+function renderProvider(provider: ProviderUsage, text: Messages, viewMode: ViewMode, previousUsage?: ProviderUsage): HTMLElement {
   const item = document.createElement("article");
   item.className = `provider${provider.stale ? " provider--stale" : ""}${provider.refreshing ? " provider--refreshing" : ""}`;
   item.dataset.provider = provider.provider;
@@ -243,7 +343,7 @@ function renderProvider(provider: ProviderUsage, text: Messages): HTMLElement {
           <span class="limit-row__reset" title="${escapeHtml(status)}">${escapeHtml(statusPreview)}</span>
         </div>
         <div class="meter meter--empty" aria-label="Usage unavailable">
-          <span style="width: 0%"></span>
+          <span class="meter__solid" style="width: 0%"></span>
         </div>
       </div>
     `;
@@ -254,10 +354,18 @@ function renderProvider(provider: ProviderUsage, text: Messages): HTMLElement {
   const label5h = isGemini ? "24h" : text.limit5h;
   const resetValue = isGemini ? "23:59" : provider.usage.primary.reset;
 
-  const primary = renderLimitRow(label5h, provider.usage.primary.percent_left, resetValue, text, provider.stale || provider.refreshing, false);
-  const weekly = provider.usage.weekly
-    ? renderLimitRow(text.weekly, provider.usage.weekly.percent_left, provider.usage.weekly.reset, text, provider.stale || provider.refreshing, true)
-    : "";
+  const primaryUsed = 100 - provider.usage.primary.percent_left;
+  const primaryPrevious = previousUsage?.usage ? (100 - previousUsage.usage.primary.percent_left) : null;
+
+  const primary = renderLimitRow(label5h, primaryUsed, primaryPrevious, resetValue, text, viewMode, provider.stale || provider.refreshing, false);
+  
+  let weekly = "";
+  if (provider.usage.weekly) {
+    const weeklyUsed = 100 - provider.usage.weekly.percent_left;
+    const weeklyPrevious = previousUsage?.usage?.weekly ? (100 - previousUsage.usage.weekly.percent_left) : null;
+    weekly = renderLimitRow(text.weekly, weeklyUsed, weeklyPrevious, provider.usage.weekly.reset, text, viewMode, provider.stale || provider.refreshing, true);
+  }
+
   const warning = provider.stale && provider.status
     ? `<div class="provider__warning" title="${escapeHtml(provider.status)}"><span class="provider__warning-icon">!</span><span>${escapeHtml(truncateStatus(provider.status))}</span></div>`
     : "";
@@ -295,35 +403,57 @@ function updateFooterRefreshingState(shell: HTMLElement | null, text: Messages, 
   footer.textContent = isRefreshing ? text.refreshing : fallbackLabel;
 }
 
-function renderLimitRow(label: string, rawPercent: number, reset: string, text: Messages, stale = false, isWeekly = false): string {
-  const percent = clampPercent(rawPercent);
-  const color = stale ? "rgb(126, 132, 144)" : usageColor(percent);
+function renderLimitRow(label: string, rawPercentUsed: number, previousPercentUsed: number | null, reset: string, text: Messages, viewMode: ViewMode, stale = false, isWeekly = false): string {
+  const current = clampPercent(rawPercentUsed);
+  const previous = (previousPercentUsed !== null && previousPercentUsed <= current) ? clampPercent(previousPercentUsed) : current;
+  
+  const displayPercent = viewMode === "consumed" ? current : (100 - current);
+  const color = stale ? "rgb(126, 132, 144)" : usageColor(current);
   const localizedReset = formatResetText(reset, text.locale, isWeekly);
+  const hasDelta = current > previous && !stale;
+
+  const displayLabel = label;
+
+  let solidWidth: number;
+  let deltaWidth: number;
+  let deltaLeft: number;
+
+  if (viewMode === "consumed") {
+    solidWidth = previous;
+    deltaWidth = current - previous;
+    deltaLeft = previous;
+  } else {
+    solidWidth = 100 - current;
+    deltaWidth = current - previous;
+    deltaLeft = 100 - current;
+  }
 
   return `
     <div class="limit-row">
       <div class="limit-row__meta">
-        <span class="limit-row__label">${escapeHtml(label)}</span>
+        <span class="limit-row__label">${escapeHtml(displayLabel)}</span>
         <span class="limit-row__reset">${escapeHtml(text.reset)} ${escapeHtml(localizedReset)}</span>
-        <strong style="color: ${color}">${Math.round(percent)}%</strong>
+        <strong style="color: ${color}">${Math.round(displayPercent)}%</strong>
       </div>
-      <div class="meter" aria-label="${Math.round(percent)} percent remaining">
-        <span style="width: ${percent}%; background: ${color}"></span>
+      <div class="meter" aria-label="${Math.round(displayPercent)} percent ${viewMode}">
+        <span class="meter__solid" style="width: ${solidWidth}%; background: ${color}"></span>
+        ${hasDelta ? `<span class="meter__delta" style="left: ${deltaLeft}%; width: ${deltaWidth}%; background: ${color}"></span>` : ""}
       </div>
     </div>
   `;
 }
 
 function usageColor(percent: number): string {
-  if (percent <= 25) {
-    return interpolateColor("#df3f3f", "#f2a33a", percent / 25);
+  // Invertido: 0% es verde, 100% es rojo
+  if (percent <= 45) {
+    return interpolateColor("#4fc978", "#e5d85c", percent / 45);
   }
 
-  if (percent <= 55) {
-    return interpolateColor("#f2a33a", "#e5d85c", (percent - 25) / 30);
+  if (percent <= 75) {
+    return interpolateColor("#e5d85c", "#f2a33a", (percent - 45) / 30);
   }
 
-  return interpolateColor("#e5d85c", "#4fc978", (percent - 55) / 45);
+  return interpolateColor("#f2a33a", "#df3f3f", (percent - 75) / 25);
 }
 
 function interpolateColor(from: string, to: string, amount: number): string {
@@ -410,7 +540,7 @@ function formatResetText(value: string, locale: "en" | "es", isWeekly: boolean):
 function sanitizeResetText(value: string): string {
   return value
     .replace(/([A-Za-z]{3})(\d{1,2})(?=,|\s|\()/g, "$1 $2")
-    .replace(/(\d)(am|pm)(\()/gi, "$1 $2 $3")
+    .replace(/(\d)(am|pm)(\ করণ)/gi, "$1 $2 $3")
     .replace(/(\d)(am|pm)$/gi, "$1 $2")
     .replace(/,\s*(\d{1,2})(am|pm)(\s*\(|$)/gi, ", $1 $2$3")
     .replace(/\s*\([^)]+\)?$/g, "")

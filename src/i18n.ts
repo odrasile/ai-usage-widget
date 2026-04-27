@@ -23,6 +23,20 @@ export type Messages = {
   unableToRefresh: string;
   limit5h: string;
   weekly: string;
+  config: string;
+  refreshInterval: string;
+  minutes: string;
+  displayMode: string;
+  language: string;
+  modeConsumed: string;
+  modeFree: string;
+  appTitleConsumed: string;
+  appTitleFree: string;
+  save: string;
+  usage5h: string;
+  free5h: string;
+  usageWeekly: string;
+  freeWeekly: string;
 };
 
 const messages: Record<Locale, Messages> = {
@@ -48,7 +62,21 @@ const messages: Record<Locale, Messages> = {
     usingCachedData: "Showing last known usage",
     unableToRefresh: "Unable to refresh usage",
     limit5h: "5h",
-    weekly: "Weekly"
+    weekly: "Weekly",
+    config: "Settings",
+    refreshInterval: "Refresh Interval",
+    minutes: "min",
+    displayMode: "Display Mode",
+    language: "Language",
+    modeConsumed: "Consumed Usage",
+    modeFree: "Free Resources",
+    appTitleConsumed: "AI Usage (Consumed)",
+    appTitleFree: "AI Usage (Free)",
+    save: "Save",
+    usage5h: "5h Usage",
+    free5h: "5h Free",
+    usageWeekly: "Weekly Usage",
+    freeWeekly: "Weekly Free"
   },
   es: {
     locale: "es",
@@ -71,8 +99,22 @@ const messages: Record<Locale, Messages> = {
     unavailable: "Uso no disponible",
     usingCachedData: "Mostrando ultimo uso conocido",
     unableToRefresh: "No se pudo actualizar el uso",
-    limit5h: "5 h",
-    weekly: "Semanal"
+    limit5h: "5h",
+    weekly: "Semanal",
+    config: "Ajustes",
+    refreshInterval: "Intervalo de Refresco",
+    minutes: "min",
+    displayMode: "Modo de Visualización",
+    language: "Idioma",
+    modeConsumed: "Uso Consumido",
+    modeFree: "Recursos Libres",
+    appTitleConsumed: "Uso AI (Consumo)",
+    appTitleFree: "Uso AI (Libre)",
+    save: "Guardar",
+    usage5h: "Uso 5h",
+    free5h: "Libre 5h",
+    usageWeekly: "Uso Semanal",
+    freeWeekly: "Libre Semanal"
   }
 };
 

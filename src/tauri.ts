@@ -1,5 +1,5 @@
 import { invoke } from "@tauri-apps/api/core";
-import type { ProviderUsage, UsageSnapshot } from "./types";
+import type { AppConfig, ProviderUsage, UsageSnapshot } from "./types";
 
 const SNAPSHOT_TIMEOUT_MS = 45_000;
 
@@ -8,6 +8,7 @@ export type StoredWindowState = {
   y: number;
   width: number;
   height: number;
+  zoom?: number;
 };
 
 export async function getUsageSnapshot(): Promise<UsageSnapshot> {
@@ -32,6 +33,14 @@ export async function loadWindowState(): Promise<StoredWindowState | null> {
 
 export async function saveWindowState(state: StoredWindowState): Promise<void> {
   await invoke("save_window_state", { state });
+}
+
+export async function loadAppConfig(): Promise<AppConfig> {
+  return invoke<AppConfig>("load_app_config");
+}
+
+export async function saveAppConfig(config: AppConfig): Promise<void> {
+  await invoke("save_app_config", { config });
 }
 
 export async function appendWindowDebugLog(message: string): Promise<void> {

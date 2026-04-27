@@ -87,6 +87,13 @@ test("parses claude usage from noisy ubuntu tty output", () => {
   assert.equal(usage.weekly.reset, "Apr29,12am(Europe/Madrid)");
 });
 
+test("parses claude usage with non-zero usage", () => {
+  const usage = parseClaudeUsage("Current session 15% used Resets 4:30pm Current week 40% used Resets May 1, 12am");
+
+  assert.equal(usage.primary.percent_left, 85);
+  assert.equal(usage.weekly.percent_left, 60);
+});
+
 test("returns null for invalid claude totals", () => {
   assert.equal(parseClaudeUsage("Remaining requests: 10\nTotal requests: 0"), null);
 });

@@ -3,8 +3,8 @@ import { LogicalPosition, LogicalSize } from "@tauri-apps/api/dpi";
 import { getCurrentWindow } from "@tauri-apps/api/window";
 import { detectLocale, getMessages } from "./i18n";
 import { renderError, renderLoading, renderSnapshot, renderTransparencyProbe, setRefreshingState, updateProviderPanel } from "./renderer";
-import { appendWindowDebugLog, getDetectedProviders, getProviderUsage, getRefreshInterval, loadWindowState, saveWindowState } from "./tauri";
-import type { AppMetadata, ProviderUsage, UsageSnapshot } from "./types";
+import { appendWindowDebugLog, getDetectedProviders, getProviderUsage, loadAppConfig, saveAppConfig, loadWindowState, saveWindowState } from "./tauri";
+import type { AppConfig, AppMetadata, ProviderUsage, UsageSnapshot } from "./types";
 
 const SNAPSHOT_CACHE_KEY = "monitorai:last-snapshot";
 const transparencyProbe = ((import.meta as ImportMeta & {
@@ -19,14 +19,21 @@ if (!root) {
 
 const appRoot = root;
 
-const text = getMessages(detectLocale());
 const appMetadata: AppMetadata = {
   author: __APP_AUTHOR__,
   version: __APP_VERSION__,
   build: __APP_BUILD__
 };
+
+let appConfig: AppConfig = {
+  refresh_interval_min: 2,
+  view_mode: "consumed"
+};
+
+let text = getMessages(detectLocale());
 let latestSnapshot: UsageSnapshot | null = loadCachedSnapshot();
 let resizeFrame = 0;
+let zoomLevel = 1.0;
 const visualMode = detectVisualMode();
 let lastAppliedMinSize = "";
 let lastAppliedSize = "";
@@ -38,6 +45,9 @@ let restoredWindowState: StoredWindowState | null = null;
 let hasCompletedInitialLayout = false;
 let suppressWindowStatePersistence = 0;
 let debugSequence = 0;
+let zoomPendingSync = 1.0;
+
+const sessionBaselines = new Map<string, { primary: number; weekly?: number }>();
 
 if (transparencyProbe) {
   renderTransparencyProbe(appRoot, transparencyProbe);
@@ -50,13 +60,25 @@ if (transparencyProbe) {
 async function startApp(): Promise<void> {
   await logWindowDebug("start", { visualMode });
   appRoot.classList.add(`visual-mode--${visualMode}`);
+
+  try {
+    appConfig = await loadAppConfig();
+    if (appConfig.locale) {
+      text = getMessages(appConfig.locale);
+    }
+  } catch (error) {
+    console.error("Unable to load app config", error);
+  }
+
   if (latestSnapshot) {
-    renderSnapshot(appRoot, latestSnapshot, text, appMetadata, refreshNow, false);
+    renderSnapshot(appRoot, latestSnapshot, text, appMetadata, refreshNow, onConfigSave, appConfig, false);
   } else {
-    renderLoading(appRoot, text, appMetadata);
+    renderLoading(appRoot, text, appMetadata, appConfig);
   }
 
   await restoreWindowState();
+  setupZoomListeners();
+  applyZoomStyle();
   queueWindowSync();
   setupWindowStatePersistence();
   void applyWindowVisualMode();
@@ -69,6 +91,23 @@ async function startApp(): Promise<void> {
 
 function refreshNow(): void {
   void refreshAllProviders();
+}
+
+async function onConfigSave(newConfig: AppConfig): Promise<void> {
+  appConfig = newConfig;
+  if (appConfig.locale) {
+    text = getMessages(appConfig.locale);
+  }
+  
+  try {
+    await saveAppConfig(appConfig);
+    if (latestSnapshot) {
+      renderSnapshot(appRoot, latestSnapshot, text, appMetadata, refreshNow, onConfigSave, appConfig, false);
+    }
+    void refreshAllProviders(); 
+  } catch (error) {
+    console.error("Unable to save app config", error);
+  }
 }
 
 function queueWindowSync(): void {
@@ -122,38 +161,32 @@ async function syncWindowLayout(): Promise<void> {
     return;
   }
 
-  const footer = shell.querySelector<HTMLElement>(".widget__footer");
-  const body = shell.querySelector<HTMLElement>(".widget__body");
-  const header = shell.querySelector<HTMLElement>(".widget__header");
-  const shellStyle = window.getComputedStyle(shell);
-  const verticalPadding = Number.parseFloat(shellStyle.paddingTop) + Number.parseFloat(shellStyle.paddingBottom);
-  const horizontalPadding = Number.parseFloat(shellStyle.paddingLeft) + Number.parseFloat(shellStyle.paddingRight);
-  const border = 2;
-  const measuredWidth = clampWidth(measureRequiredWidth(shell) + horizontalPadding + border);
-  const contentHeight = Math.ceil(
-    (header?.scrollHeight ?? 0) +
-    (body?.scrollHeight ?? 0) +
-    (footer?.scrollHeight ?? 0) +
-    verticalPadding +
-    border
-  );
-  const measuredHeight = clampHeight(contentHeight);
+  const originalHeight = shell.style.height;
+  const originalWidth = shell.style.width;
+  shell.style.height = "auto";
+  shell.style.width = "max-content";
+  
+  const measuredWidth = clampWidth(shell.scrollWidth + 2);
+  const measuredHeight = clampHeight(shell.scrollHeight + 2);
+  
+  shell.style.height = originalHeight;
+  shell.style.width = originalWidth;
+
   const currentSize = await getCurrentLogicalInnerSize();
-  const targetWidth = resolveTargetWidth(measuredWidth, currentSize.width);
-  const targetHeight = resolveTargetHeight(measuredHeight, currentSize.height);
+  const targetWidth = resolveTargetWidth(measuredWidth, currentSize.width * zoomPendingSync);
+  const targetHeight = resolveTargetHeight(measuredHeight, currentSize.height * zoomPendingSync);
+  zoomPendingSync = 1.0;
+  
   const minSizeKey = `${measuredWidth}x${measuredHeight}`;
+  
   await logWindowDebug("syncWindowLayout:measure", {
     measuredWidth,
-    contentHeight,
     measuredHeight,
     currentWidth: currentSize.width,
     currentHeight: currentSize.height,
     targetWidth,
     targetHeight,
-    restoredWidth: restoredWindowState?.width ?? null,
-    restoredHeight: restoredWindowState?.height ?? null,
-    restoredX: restoredWindowState?.x ?? null,
-    restoredY: restoredWindowState?.y ?? null
+    zoomLevel
   });
 
   try {
@@ -165,17 +198,11 @@ async function syncWindowLayout(): Promise<void> {
     console.error("Unable to set widget minimum size", error);
   }
 
-  const shouldResizeWidth = targetWidth - currentSize.width > 1;
+  const shouldResizeWidth = Math.abs(targetWidth - currentSize.width) > 1;
   const shouldResizeHeight = Math.abs(currentSize.height - targetHeight) > 1;
 
   if (!shouldResizeWidth && !shouldResizeHeight) {
     hasCompletedInitialLayout = true;
-    await logWindowDebug("syncWindowLayout:skip-resize", {
-      currentWidth: currentSize.width,
-      currentHeight: currentSize.height,
-      targetWidth,
-      targetHeight
-    });
     return;
   }
 
@@ -186,13 +213,6 @@ async function syncWindowLayout(): Promise<void> {
   try {
     if (lastAppliedSize !== sizeKey) {
       beginSuppressWindowStatePersistence();
-      await logWindowDebug("syncWindowLayout:set-size", {
-        nextWidth,
-        nextHeight,
-        currentWidth: currentSize.width,
-        previousWidth: currentSize.width,
-        previousHeight: currentSize.height
-      });
       await currentWindow.setSize(new LogicalSize(nextWidth, nextHeight));
       lastAppliedSize = sizeKey;
     }
@@ -205,15 +225,15 @@ async function syncWindowLayout(): Promise<void> {
 }
 
 function clampWidth(value: number): number {
-  return Math.min(760, Math.max(baseMinWidth(), value));
+  return Math.min(1200 * zoomLevel, Math.max(320 * zoomLevel, value));
 }
 
 function clampHeight(value: number): number {
-  return Math.min(560, Math.max(132, value));
+  return Math.min(1600 * zoomLevel, Math.max(100 * zoomLevel, value));
 }
 
 function baseMinWidth(): number {
-  return visualMode === "linux-fallback" ? 540 : 470;
+  return (visualMode === "linux-fallback" ? 480 : 320);
 }
 
 function detectVisualMode(): "transparent" | "linux-fallback" {
@@ -221,31 +241,57 @@ function detectVisualMode(): "transparent" | "linux-fallback" {
   return userAgent.includes("linux") ? "linux-fallback" : "transparent";
 }
 
-function mergeSnapshotWithPrevious(snapshot: UsageSnapshot, previous: UsageSnapshot | null): UsageSnapshot {
-  if (!previous) {
-    return snapshot;
+function setupZoomListeners(): void {
+  window.addEventListener("keydown", (event) => {
+    const isModKey = visualMode === "transparent" ? event.metaKey : event.ctrlKey;
+    if (!isModKey) {
+      return;
+    }
+
+    if (event.key === "=" || event.key === "+") {
+      event.preventDefault();
+      changeZoom(0.1);
+    } else if (event.key === "-") {
+      event.preventDefault();
+      changeZoom(-0.1);
+    } else if (event.key === "0") {
+      event.preventDefault();
+      resetZoom();
+    }
+  });
+
+  window.addEventListener("wheel", (event) => {
+    const isModKey = visualMode === "transparent" ? event.metaKey : event.ctrlKey;
+    if (isModKey) {
+      event.preventDefault();
+      changeZoom(event.deltaY < 0 ? 0.1 : -0.1);
+    }
+  }, { passive: false });
+}
+
+function changeZoom(delta: number): void {
+  const nextZoom = Math.round((zoomLevel + delta) * 10) / 10;
+  if (nextZoom >= 0.5 && nextZoom <= 2.0) {
+    zoomPendingSync = nextZoom / zoomLevel;
+    zoomLevel = nextZoom;
+    applyZoomStyle();
+    queueWindowSync();
+    queueWindowStatePersist();
   }
+}
 
-  if (snapshot.providers.length === 0 && previous.providers.length > 0) {
-    return {
-      ...snapshot,
-      providers: previous.providers.map((provider) => ({
-        ...provider,
-        available: false,
-        stale: true,
-        status: text.usingCachedData
-      }))
-    };
+function resetZoom(): void {
+  if (zoomLevel !== 1.0) {
+    zoomPendingSync = 1.0 / zoomLevel;
+    zoomLevel = 1.0;
+    applyZoomStyle();
+    queueWindowSync();
+    queueWindowStatePersist();
   }
+}
 
-  const previousProviders = new Map(previous.providers.map((provider) => [provider.provider, provider]));
-
-  return {
-    ...snapshot,
-    providers: snapshot.providers.map((provider) => {
-      return mergeProviderWithPrevious(provider, previousProviders.get(provider.provider), text.usingCachedData);
-    })
-  };
+function applyZoomStyle(): void {
+  document.documentElement.style.setProperty("--widget-zoom", zoomLevel.toString());
 }
 
 function mergeProviderWithPrevious(
@@ -287,22 +333,22 @@ async function refreshAllProviders(): Promise<void> {
   stopRefreshTimer();
 
   try {
-    const refreshIntervalSec = await getRefreshInterval().catch(() => latestSnapshot?.refresh_interval_sec ?? 120);
     const detectedProviders = await getDetectedProviders();
 
     if (detectedProviders.length === 0) {
       latestSnapshot = {
         providers: [],
-        refresh_interval_sec: refreshIntervalSec,
+        refresh_interval_sec: appConfig.refresh_interval_min * 60,
         updated_at: new Date().toISOString()
       };
-      renderSnapshot(appRoot, latestSnapshot, text, appMetadata, refreshNow, false);
+      renderSnapshot(appRoot, latestSnapshot, text, appMetadata, refreshNow, onConfigSave, appConfig, false);
       queueWindowSync();
-      scheduleNextRefresh(refreshIntervalSec);
+      scheduleNextRefresh(appConfig.refresh_interval_min * 60);
       return;
     }
 
-    const previousByProvider = new Map((latestSnapshot?.providers ?? []).map((provider) => [provider.provider, provider]));
+    const previousSnapshot = latestSnapshot;
+    const previousByProvider = new Map((previousSnapshot?.providers ?? []).map((provider) => [provider.provider, provider]));
     latestSnapshot = {
       providers: detectedProviders.map((providerName) => {
         const previous = previousByProvider.get(providerName);
@@ -322,16 +368,39 @@ async function refreshAllProviders(): Promise<void> {
           status: text.refreshingProviders
         } satisfies ProviderUsage;
       }),
-      refresh_interval_sec: refreshIntervalSec,
+      refresh_interval_sec: appConfig.refresh_interval_min * 60,
       updated_at: new Date().toISOString()
     };
 
-    renderSnapshot(appRoot, latestSnapshot, text, appMetadata, refreshNow, true);
+    renderSnapshot(appRoot, latestSnapshot, text, appMetadata, refreshNow, onConfigSave, appConfig, true, previousSnapshot);
     queueWindowSync();
 
     const updateProviderResult = (providerName: string, nextProvider: ProviderUsage): void => {
       if (!latestSnapshot) {
         return;
+      }
+
+      // Gestionar baseline de la sesion
+      if (nextProvider.usage && !nextProvider.stale) {
+        const currentPrimaryUsed = 100 - nextProvider.usage.primary.percent_left;
+        const currentWeeklyUsed = nextProvider.usage.weekly ? (100 - nextProvider.usage.weekly.percent_left) : undefined;
+        
+        const baseline = sessionBaselines.get(providerName);
+        if (!baseline) {
+          // Primera lectura valida de la sesion: establecer baseline
+          sessionBaselines.set(providerName, {
+            primary: currentPrimaryUsed,
+            weekly: currentWeeklyUsed
+          });
+        } else {
+          // Si el uso ha bajado drasticamente (reinicio de cuota), actualizamos baseline
+          if (currentPrimaryUsed < baseline.primary) {
+            baseline.primary = currentPrimaryUsed;
+          }
+          if (currentWeeklyUsed !== undefined && baseline.weekly !== undefined && currentWeeklyUsed < baseline.weekly) {
+            baseline.weekly = currentWeeklyUsed;
+          }
+        }
       }
 
       latestSnapshot = {
@@ -348,7 +417,22 @@ async function refreshAllProviders(): Promise<void> {
 
       persistSnapshot(latestSnapshot);
       const stillRefreshing = hasPendingRefreshingProviders(latestSnapshot.providers);
-      updateProviderPanel(appRoot, nextProvider, text, latestSnapshot.updated_at, stillRefreshing);
+      
+      // Preparar el snapshot previo virtual basado en el baseline para el calculo del delta
+      const baseline = sessionBaselines.get(providerName);
+      const virtualPrevious: ProviderUsage | undefined = baseline && nextProvider.usage ? {
+        ...nextProvider,
+        usage: {
+          ...nextProvider.usage,
+          primary: { ...nextProvider.usage.primary, percent_left: 100 - baseline.primary },
+          weekly: nextProvider.usage.weekly && baseline.weekly !== undefined ? { 
+            ...nextProvider.usage.weekly, 
+            percent_left: 100 - baseline.weekly 
+          } : nextProvider.usage.weekly
+        }
+      } : undefined;
+
+      updateProviderPanel(appRoot, nextProvider, text, latestSnapshot.updated_at, stillRefreshing, appConfig.view_mode, virtualPrevious);
       setRefreshingState(appRoot, text, stillRefreshing);
       queueWindowSync();
     };
@@ -373,7 +457,7 @@ async function refreshAllProviders(): Promise<void> {
       });
     }));
 
-    scheduleNextRefresh(refreshIntervalSec);
+    scheduleNextRefresh(appConfig.refresh_interval_min * 60);
   } catch (error) {
     const message = error instanceof Error ? error.message : String(error);
     if (latestSnapshot) {
@@ -388,13 +472,13 @@ async function refreshAllProviders(): Promise<void> {
         }))
       };
       latestSnapshot = staleSnapshot;
-      renderSnapshot(appRoot, staleSnapshot, text, appMetadata, refreshNow, false);
+      renderSnapshot(appRoot, staleSnapshot, text, appMetadata, refreshNow, onConfigSave, appConfig, false);
       queueWindowSync();
     } else {
-      renderError(appRoot, message || text.unableToRefresh, text, appMetadata);
+      renderError(appRoot, message || text.unableToRefresh, text, appMetadata, appConfig);
       queueWindowSync();
     }
-    scheduleNextRefresh(latestSnapshot?.refresh_interval_sec ?? 120);
+    scheduleNextRefresh(appConfig.refresh_interval_min * 60);
   } finally {
     refreshInFlight = false;
   }
@@ -420,7 +504,7 @@ function clampRefreshInterval(value: number): number {
     return 120;
   }
 
-  return Math.min(120, Math.max(30, value));
+  return Math.min(3600, Math.max(30, value));
 }
 
 function hasPendingRefreshingProviders(providers: ProviderUsage[]): boolean {
@@ -432,6 +516,7 @@ type StoredWindowState = {
   y: number;
   width: number;
   height: number;
+  zoom?: number;
 };
 
 async function restoreWindowState(): Promise<void> {
@@ -444,6 +529,9 @@ async function restoreWindowState(): Promise<void> {
   try {
     beginSuppressWindowStatePersistence();
     await logWindowDebug("restoreWindowState:apply", state);
+    if (typeof state.zoom === "number" && state.zoom >= 0.5 && state.zoom <= 2.0) {
+      zoomLevel = state.zoom;
+    }
     await currentWindow.setSize(new LogicalSize(state.width, state.height));
     await currentWindow.setPosition(new LogicalPosition(state.x, state.y));
     restoredWindowState = state;
@@ -457,18 +545,20 @@ async function restoreWindowState(): Promise<void> {
 
 function resolveTargetWidth(measuredWidth: number, currentWidth: number): number {
   if (!hasCompletedInitialLayout && restoredWindowState) {
-    return Math.max(measuredWidth, clampWidth(restoredWindowState.width));
+    const scaleFactor = zoomLevel / (restoredWindowState.zoom ?? 1.0);
+    return Math.max(measuredWidth, clampWidth(restoredWindowState.width * scaleFactor));
   }
 
-  return Math.max(measuredWidth, currentWidth);
+  return Math.max(measuredWidth, clampWidth(currentWidth));
 }
 
 function resolveTargetHeight(measuredHeight: number, currentHeight: number): number {
   if (!hasCompletedInitialLayout && restoredWindowState) {
-    return Math.max(measuredHeight, clampHeight(restoredWindowState.height));
+    const scaleFactor = zoomLevel / (restoredWindowState.zoom ?? 1.0);
+    return Math.max(measuredHeight, clampHeight(restoredWindowState.height * scaleFactor));
   }
 
-  return Math.max(measuredHeight, currentHeight);
+  return Math.max(measuredHeight, clampHeight(currentHeight));
 }
 
 function setupWindowStatePersistence(): void {
@@ -483,7 +573,6 @@ function setupWindowStatePersistence(): void {
 
 function queueWindowStatePersist(): void {
   if (suppressWindowStatePersistence > 0) {
-    void logWindowDebug("queueWindowStatePersist:suppressed", { suppressWindowStatePersistence });
     return;
   }
 
@@ -498,7 +587,6 @@ function queueWindowStatePersist(): void {
 
 async function persistWindowStateFromWindow(): Promise<void> {
   if (suppressWindowStatePersistence > 0) {
-    await logWindowDebug("persistWindowState:skip-suppressed", { suppressWindowStatePersistence });
     return;
   }
 
@@ -510,37 +598,15 @@ async function persistWindowStateFromWindow(): Promise<void> {
       x: position.x / scaleFactor,
       y: position.y / scaleFactor,
       width: size.width / scaleFactor,
-      height: size.height / scaleFactor
+      height: size.height / scaleFactor,
+      zoom: zoomLevel
     };
-    await logWindowDebug("persistWindowState:save", {
-      scaleFactor,
-      outerX: position.x,
-      outerY: position.y,
-      innerWidth: size.width,
-      innerHeight: size.height,
-      state
-    });
     await saveWindowState(state);
     restoredWindowState = state;
     lastAppliedSize = `${state.width}x${state.height}`;
   } catch (error) {
     console.error("Unable to persist window state", error);
-    await logWindowDebug("persistWindowState:error", {
-      error: error instanceof Error ? error.message : String(error)
-    });
   }
-}
-
-function measureRequiredWidth(shell: HTMLElement): number {
-  const candidates = [
-    shell.querySelector<HTMLElement>(".widget__header"),
-    shell.querySelector<HTMLElement>(".widget__footer"),
-    shell.querySelector<HTMLElement>(".widget__body"),
-    ...Array.from(shell.querySelectorAll<HTMLElement>(".provider__top, .limit-row__meta, .provider__warning"))
-  ].filter(Boolean) as HTMLElement[];
-
-  const measured = candidates.map((element) => Math.ceil(element.scrollWidth));
-  return Math.max(baseMinWidth(), ...measured);
 }
 
 async function getCurrentLogicalInnerSize(): Promise<{ width: number; height: number }> {
@@ -554,13 +620,11 @@ async function getCurrentLogicalInnerSize(): Promise<{ width: number; height: nu
 
 function beginSuppressWindowStatePersistence(): void {
   suppressWindowStatePersistence += 1;
-  void logWindowDebug("suppress:begin", { suppressWindowStatePersistence });
 }
 
 function endSuppressWindowStatePersistenceSoon(): void {
   window.setTimeout(() => {
     suppressWindowStatePersistence = Math.max(0, suppressWindowStatePersistence - 1);
-    void logWindowDebug("suppress:end", { suppressWindowStatePersistence });
   }, 250);
 }
 

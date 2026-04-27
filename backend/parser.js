@@ -128,8 +128,9 @@ function findNumber(output, patterns) {
 }
 
 function findSectionPercent(output, labelPattern) {
-  const normalized = output.replace(/\r/g, " ");
-  const match = normalized.match(new RegExp(`${labelPattern.source}[\\s\\S]{0,200}?(\\d+(?:\\.\\d+)?)%\\s*used`, "i"));
+  const normalized = output.replace(/\r/g, " ").replace(/\u001b\[[0-9;]*m/g, "");
+  const labelRegex = new RegExp(`${labelPattern.source}[^%]{0,100}?(\\d+(?:\\.\\d+)?)%\\s*(?:used|consumed)`, "i");
+  const match = normalized.match(labelRegex);
   if (!match) {
     return null;
   }

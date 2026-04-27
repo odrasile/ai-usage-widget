@@ -6,6 +6,7 @@
   font-size: 14px;
   font-synthesis: none;
   text-rendering: optimizeLegibility;
+  zoom: var(--widget-zoom, 1);
 }
 
 * {
@@ -155,14 +156,16 @@ body {
   gap: 6px;
 }
 
-.window-info-wrap {
+.window-info-wrap,
+.window-config-wrap {
   position: relative;
 }
 
 .window-close,
 .window-hide,
 .window-info,
-.window-refresh {
+.window-refresh,
+.window-config {
   display: inline-grid;
   width: 22px;
   height: 22px;
@@ -181,52 +184,117 @@ body {
   color: #ffffff;
 }
 
-.window-info:hover {
+.window-info:hover,
+.window-config:hover {
   background: rgba(255, 255, 255, 0.16);
   color: #ffffff;
 }
 
 .window-info-popover {
+  right: -84px;
+}
+
+.window-config-popover {
+  right: -112px;
+}
+
+.window-info-popover,
+.window-config-popover {
   position: absolute;
   top: calc(100% + 8px);
-  right: 0;
   z-index: 20;
   display: grid;
-  gap: 6px;
-  min-width: 230px;
-  padding: 10px 11px;
+  gap: 12px;
+  min-width: 280px;
+  padding: 14px 15px;
   border: 1px solid rgba(255, 255, 255, 0.12);
   border-radius: 8px;
   background: rgba(16, 20, 28, 0.98);
-  box-shadow: 0 14px 30px rgba(0, 0, 0, 0.3);
+  box-shadow: 0 14px 30px rgba(0, 0, 0, 0.4);
   text-transform: none;
   letter-spacing: 0;
   cursor: default;
 }
 
-.window-info-popover[hidden] {
+.window-info-popover[hidden],
+.window-config-popover[hidden] {
   display: none;
 }
 
-.window-info-popover__title {
-  color: #f5f7fb;
-  font-size: 12px;
-  font-weight: 700;
+.window-info-popover__title,
+.window-config-popover__title {
+  color: #ffffff;
+  font-size: 13px;
+  font-weight: 800;
+  margin-bottom: 4px;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+  padding-bottom: 8px;
 }
 
-.window-info-popover__row {
+.window-info-popover__row,
+.window-config-popover__row {
   display: flex;
-  align-items: baseline;
+  align-items: center;
   justify-content: space-between;
-  gap: 12px;
-  color: #aeb7c5;
+  gap: 16px;
+  color: #f5f7fb;
   font-size: 12px;
+  font-weight: 500;
 }
 
 .window-info-popover__row strong {
   color: #f5f7fb;
   font-weight: 600;
   text-align: right;
+}
+
+.config-refresh-input {
+  width: 60px;
+  background: rgba(255, 255, 255, 0.08);
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  border-radius: 4px;
+  color: #f5f7fb;
+  font-size: 12px;
+  padding: 2px 4px;
+}
+
+.config-view-mode-select,
+.config-language-select {
+  appearance: none;
+  -webkit-appearance: none;
+  background: rgb(40, 46, 58);
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' fill='%23d8deea' viewBox='0 0 16 16'%3E%3Cpath d='M7.247 11.14 2.451 5.658C1.885 5.013 2.345 4 3.204 4h9.592a1 1 0 0 1 .753 1.659l-4.796 5.48a1 1 0 0 1-1.506 0z'/%3E%3C/svg%3E");
+  background-repeat: no-repeat;
+  background-position: right 8px center;
+  border: 1px solid rgba(255, 255, 255, 0.2);
+  border-radius: 4px;
+  color: #ffffff;
+  font-size: 12px;
+  padding: 3px 26px 3px 8px;
+  cursor: pointer;
+  width: 100%;
+}
+
+.config-view-mode-select option,
+.config-language-select option {
+  background-color: rgb(26, 31, 41) !important;
+  color: #ffffff !important;
+}
+
+.config-save-button {
+  margin-top: 8px;
+  background: #62b8ff;
+  color: #ffffff;
+  border: 0;
+  border-radius: 4px;
+  padding: 6px;
+  font-size: 12px;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.config-save-button:hover {
+  background: #7ecbff;
 }
 
 .window-refresh:hover {
@@ -373,6 +441,7 @@ body {
 }
 
 .meter {
+  position: relative;
   width: 100%;
   height: 7px;
   overflow: hidden;
@@ -380,13 +449,33 @@ body {
   background: rgba(255, 255, 255, 0.1);
 }
 
-.meter span {
-  display: block;
+.meter__solid,
+.meter__delta {
+  position: absolute;
+  top: 0;
+  left: 0;
   height: 100%;
   border-radius: inherit;
+  transition: width 300ms ease-out, left 300ms ease-out;
 }
 
-.meter--empty span {
+.meter__solid {
+  z-index: 2;
+}
+
+.meter__delta {
+  z-index: 1;
+  opacity: 0.45;
+  filter: brightness(1.2) saturate(1.2);
+  animation: pulse-delta 2s infinite ease-in-out;
+}
+
+@keyframes pulse-delta {
+  0%, 100% { opacity: 0.4; }
+  50% { opacity: 0.7; }
+}
+
+.meter--empty .meter__solid {
   background: transparent;
 }
 
@@ -436,11 +525,13 @@ body {
 }
 
 .widget__footer {
+  flex-shrink: 0;
   margin-top: 7px;
   padding-top: 7px;
   color: #8e99aa;
   font-size: 11px;
   line-height: 1.1;
+  z-index: 10;
 }
 
 .widget__footer--refreshing {

@@ -1,3 +1,5 @@
+import type { Locale } from "./i18n";
+
 export type ProviderName = string;
 
 export type AppMetadata = {
@@ -24,8 +26,16 @@ export type ProviderUsage = {
   } | null;
 };
 
+export type ViewMode = "consumed" | "free";
+
+export type AppConfig = {
+  refresh_interval_min: number;
+  view_mode: ViewMode;
+  locale?: Locale;
+};
+
 export type UsageSnapshot = {
   providers: ProviderUsage[];
-  refresh_interval_sec: number;
+  refresh_interval_sec: number; // Keep for backward compatibility or internal scheduling
   updated_at: string;
 };

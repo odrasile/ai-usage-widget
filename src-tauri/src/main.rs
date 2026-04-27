@@ -27,6 +27,23 @@ struct WindowState {
     y: f64,
     width: f64,
     height: f64,
+    zoom: Option<f64>,
+}
+
+#[derive(Clone, serde::Serialize, serde::Deserialize)]
+struct AppConfig {
+    refresh_interval_min: u64,
+    view_mode: String,
+}
+
+#[tauri::command]
+fn load_app_config(app: AppHandle) -> Result<AppConfig, String> {
+    load_app_config_from_disk(&app)
+}
+
+#[tauri::command]
+fn save_app_config(app: AppHandle, config: AppConfig) -> Result<(), String> {
+    save_app_config_to_disk(&app, &config)
 }
 
 #[tauri::command]
@@ -370,12 +387,48 @@ fn save_window_state_to_disk(app: &AppHandle, state: &WindowState) -> Result<(),
         .map_err(|error| format!("Unable to persist window state: {error}"))
 }
 
+fn load_app_config_from_disk(app: &AppHandle) -> Result<AppConfig, String> {
+    let config_path = app_config_path(app)?;
+    if !config_path.exists() {
+        return Ok(AppConfig {
+            refresh_interval_min: 2,
+            view_mode: "consumed".to_string(),
+        });
+    }
+
+    let content = fs::read_to_string(&config_path)
+        .map_err(|error| format!("Unable to read app config: {error}"))?;
+    serde_json::from_str::<AppConfig>(&content)
+        .map_err(|error| format!("Unable to parse app config: {error}"))
+}
+
+fn save_app_config_to_disk(app: &AppHandle, config: &AppConfig) -> Result<(), String> {
+    let config_path = app_config_path(app)?;
+    if let Some(parent) = config_path.parent() {
+        fs::create_dir_all(parent)
+            .map_err(|error| format!("Unable to create app config directory: {error}"))?;
+    }
+
+    let content = serde_json::to_string(config)
+        .map_err(|error| format!("Unable to serialize app config: {error}"))?;
+    fs::write(&config_path, content)
+        .map_err(|error| format!("Unable to persist app config: {error}"))
+}
+
 fn window_state_path(app: &AppHandle) -> Result<PathBuf, String> {
     let app_data_dir = app
         .path()
         .app_data_dir()
         .map_err(|error| format!("Unable to resolve app data directory: {error}"))?;
     Ok(app_data_dir.join("window-state.json"))
+}
+
+fn app_config_path(app: &AppHandle) -> Result<PathBuf, String> {
+    let app_data_dir = app
+        .path()
+        .app_data_dir()
+        .map_err(|error| format!("Unable to resolve app data directory: {error}"))?;
+    Ok(app_data_dir.join("config.json"))
 }
 
 fn window_debug_log_path(app: &AppHandle) -> Result<PathBuf, String> {
@@ -464,6 +517,8 @@ fn main() {
             get_refresh_interval,
             load_window_state,
             save_window_state,
+            load_app_config,
+            save_app_config,
             append_window_debug_log
         ])
         .run(tauri::generate_context!())
