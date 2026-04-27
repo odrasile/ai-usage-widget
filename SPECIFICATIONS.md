@@ -282,6 +282,7 @@ Representacion especifica en UI:
 Compatibilidad:
 
 - Detectar mensajes de "exhausted capacity" o errores `429` / `RESOURCE_EXHAUSTED` para reportar 0% de disponibilidad de forma inmediata.
+- Detectar tambien el caso en que la columna `quota` del TUI muestre `limit reached`; debe interpretarse igualmente como 0% disponible.
 
 ### Futuros CLIs
 

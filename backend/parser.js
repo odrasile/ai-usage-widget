@@ -4,11 +4,8 @@ const CLAUDE_RESET_LABEL = /Rese(?:t?s?)?/i;
 const RESET_CAPTURE = /resets?(?:\s+at|\s+in|:)?\s*([^\n\r)]+?)(?=\s+(?:5h|weekly|week)\b|[\n\r)]|$)/i;
 
 export function parseGeminiUsage(output) {
-  const tierMatch = output.match(/(?:Tier|Plan):\s+([^\n\r/]+)/i);
-  const tier = tierMatch ? tierMatch[1].trim() : null;
-
   const quotaMatch = output.match(/(\d+(?:\.\d+)?)\s*%\s*used/i);
-  
+
   if (quotaMatch) {
     const used = parseFloat(quotaMatch[1]);
     return {
@@ -16,27 +13,21 @@ export function parseGeminiUsage(output) {
         percent_left: Math.max(0, 100 - used),
         reset: "N/A"
       },
-      status: tier || "Gemini"
+      status: extractGeminiTier(output) || "Gemini"
     };
   }
 
-  if (/exhausted\s+your\s+capacity/i.test(output) || /RESOURCE_EXHAUSTED/i.test(output)) {
+  if (
+    /exhausted\s+your\s+capacity/i.test(output)
+    || /RESOURCE_EXHAUSTED/i.test(output)
+    || /\blimit\s+reached\b/i.test(output)
+  ) {
     return {
       primary: {
         percent_left: 0,
         reset: "unknown"
       },
-      status: tier || "Gemini (Exhausted)"
-    };
-  }
-
-  if (tier) {
-    return {
-      primary: {
-        percent_left: 100,
-        reset: "N/A"
-      },
-      status: tier
+      status: "Gemini (Exhausted)"
     };
   }
 
@@ -203,4 +194,9 @@ function cleanClaudeReset(value) {
     .replace(/\s*(?:Current\s+(?:session|week)|Curr\w*(?:session|week)|Refreshing|Esc\s*to\s*cancel|Esctocancel).*$/i, "")
     .replace(/\s+/g, " ")
     .trim();
+}
+
+function extractGeminiTier(output) {
+  const tierMatch = output.match(/(?:Tier|Plan):\s+([^\n\r/]+)/i);
+  return tierMatch ? tierMatch[1].trim() : null;
 }

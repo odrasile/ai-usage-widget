@@ -127,6 +127,11 @@ export function runGeminiUsagePty(options = {}) {
         eventLog.push(`${timestamp()} EVENT quota-detected`);
         finish(true);
       }
+
+      if (hasGeminiUsage(output)) {
+        eventLog.push(`${timestamp()} EVENT gemini-usage-detected`);
+        finish(true);
+      }
     });
 
     child.onExit(() => {

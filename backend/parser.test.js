@@ -2,7 +2,7 @@ import assert from "node:assert/strict";
 import test from "node:test";
 import { parseClaudeUsage, parseCodexStatus, parseGeminiUsage } from "./parser.js";
 
-test("parses gemini usage and extracts tier", () => {
+test("returns null for gemini tier-only output", () => {
   const output = `
  Interaction Summary
  Session ID:                 ca278ca1-cdc7-4ff8-9266-22fc22f7d527
@@ -13,8 +13,7 @@ test("parses gemini usage and extracts tier", () => {
   `;
   const usage = parseGeminiUsage(output);
 
-  assert.equal(usage.primary.percent_left, 100);
-  assert.equal(usage.status, "Gemini Code Assist for individuals");
+  assert.equal(usage, null);
 });
 
 test("parses gemini quota in table format", () => {
@@ -30,6 +29,31 @@ test("parses gemini exhausted quota", () => {
   const usage = parseGeminiUsage(output);
 
   assert.equal(usage.primary.percent_left, 0);
+});
+
+test("parses gemini limit reached in table quota column", () => {
+  const output = `
+workspace (/directory)     branch     sandbox       /model                            quota
+~/development/MonitorAI    master     no sandbox    gemini-3-flash-preview            limit reached
+  `;
+  const usage = parseGeminiUsage(output);
+
+  assert.equal(usage.primary.percent_left, 0);
+  assert.equal(usage.status, "Gemini (Exhausted)");
+});
+
+test("parses gemini exhausted quota even when plan text is present", () => {
+  const output = `
+Gemini CLI v0.39.1
+Signed in with Google /auth
+Plan: Gemini Code Assist for individuals /upgrade
+workspace (/directory)     branch     sandbox       /model                            quota
+~/development/MonitorAI    master     no sandbox    gemini-3-flash-preview            limit reached
+  `;
+  const usage = parseGeminiUsage(output);
+
+  assert.equal(usage.primary.percent_left, 0);
+  assert.equal(usage.status, "Gemini (Exhausted)");
 });
 
 test("parses codex status with 5h, weekly and reset values", () => {
