@@ -99,3 +99,15 @@ test("parses codex status when output is flattened onto one line", () => {
   assert.equal(usage.weekly.percent_left, 81);
   assert.equal(usage.weekly.reset, "09:24 on 29 Apr");
 });
+
+test("keeps codex 5h and weekly resets independent with long progress bars", () => {
+  const usage = parseCodexStatus(
+    "5h limit: [████████████████████████████████████████████████░░░░░░░░░░░░░░░░] 77% left (reset at 01:09 on 27 Apr)\n"
+    + "Weekly limit: [████░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░] 6% left (reset in 09:24 on 29 Apr)"
+  );
+
+  assert.equal(usage.primary.percent_left, 77);
+  assert.equal(usage.primary.reset, "01:09 on 27 Apr");
+  assert.equal(usage.weekly.percent_left, 6);
+  assert.equal(usage.weekly.reset, "09:24 on 29 Apr");
+});

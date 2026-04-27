@@ -1,6 +1,7 @@
 const CLAUDE_SESSION_LABEL = /(?:current\s*session|curr\w*session)/i;
 const CLAUDE_WEEK_LABEL = /(?:current\s*week|curr\w*week)/i;
 const CLAUDE_RESET_LABEL = /Rese(?:t?s?)?/i;
+const RESET_CAPTURE = /resets?(?:\s+at|\s+in|:)?\s*([^\n\r)]+?)(?=\s+(?:5h|weekly|week)\b|[\n\r)]|$)/i;
 
 export function parseGeminiUsage(output) {
   const tierMatch = output.match(/(?:Tier|Plan):\s+([^\n\r/]+)/i);
@@ -166,13 +167,13 @@ function findLineReset(output, labelPattern) {
     return findReset(output);
   }
 
-  const resetMatch = line.match(/(?:resets?|rese(?:t?s?)?)(?:\s+at|\s+in|:)?\s*([^)\n\r]+)/i);
+  const resetMatch = line.match(RESET_CAPTURE);
   return resetMatch ? cleanReset(resetMatch[1]) : findReset(output);
 }
 
 function findScopedReset(output, labelPattern) {
   const normalized = output.replace(/\r/g, " ");
-  const scoped = normalized.match(new RegExp(`(?:${labelPattern.source})[\\s\\S]{0,160}?(?:resets?|rese(?:t?s?)?)(?:\\s+at|\\s+in|:)?\\s*([^)\\n\\r]+)`, "i"));
+  const scoped = normalized.match(new RegExp(`(?:${labelPattern.source})[\\s\\S]{0,220}?${RESET_CAPTURE.source}`, "i"));
   if (scoped?.[1]) {
     return cleanReset(scoped[1]);
   }
@@ -186,6 +187,7 @@ function cleanReset(value) {
   }
 
   return String(value)
+    .replace(/^(?:at|in)\s+/i, "")
     .replace(/[)\]|\u2502]+$/g, "")
     .replace(/\s*[)\]|\u2502]+\s*$/g, "")
     .trim();

@@ -1,5 +1,6 @@
 import os from "node:os";
 import path from "node:path";
+import { readdirSync } from "node:fs";
 
 export function getLookupCommand() {
   return process.platform === "win32"
@@ -51,9 +52,18 @@ export function augmentPath(env) {
 
   const home = os.homedir();
   const commonPaths = [
+    "/opt/homebrew/bin",
+    "/opt/homebrew/sbin",
+    ...getNvmNodeBinPaths(home),
+    path.join(home, ".volta", "bin"),
+    path.join(home, ".asdf", "shims"),
     path.join(home, ".npm-global", "bin"),
     path.join(home, ".local", "bin"),
-    "/usr/local/bin"
+    path.join(home, ".cargo", "bin"),
+    "/usr/local/bin",
+    "/usr/local/sbin",
+    "/opt/local/bin",
+    "/opt/local/sbin"
   ];
 
   const currentPath = env.PATH || "";
@@ -61,6 +71,17 @@ export function augmentPath(env) {
     ...env,
     PATH: [...commonPaths, ...currentPath.split(":")].join(":")
   };
+}
+
+function getNvmNodeBinPaths(home) {
+  const versionsDir = path.join(home, ".nvm", "versions", "node");
+  try {
+    return readdirSync(versionsDir, { withFileTypes: true })
+      .filter((entry) => entry.isDirectory())
+      .map((entry) => path.join(versionsDir, entry.name, "bin"));
+  } catch {
+    return [];
+  }
 }
 
 export function isWindows() {

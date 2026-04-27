@@ -8,7 +8,7 @@ AI Usage Widget
 
 ## Objetivo
 
-Aplicacion de escritorio para Windows y Unix desktop, empezando por Ubuntu, que muestra en tiempo casi real el uso disponible de herramientas AI coding locales a traves de sus CLIs.
+Aplicacion de escritorio para Windows y Unix desktop, empezando por macOS y Ubuntu, que muestra en tiempo casi real el uso disponible de herramientas AI coding locales a traves de sus CLIs.
 
 La aplicacion debe funcionar como un widget flotante, always-on-top, discreto y facil de ocultar/restaurar.
 
@@ -20,6 +20,7 @@ Este documento debe servir tambien como contexto de continuidad si el repositori
 
 Plataformas objetivo actuales:
 
+- macOS
 - Windows
 - Ubuntu Desktop
 
@@ -34,6 +35,37 @@ Tecnologia:
 - Backend local Node.
 - Rust solo para integracion Tauri y ventana.
 - `node-pty` cuando haga falta un TTY real.
+
+### Politica comun de Node.js
+
+Node.js 20 o superior es una dependencia comun para macOS, Windows y Ubuntu.
+
+Motivo:
+
+- El proyecto usa un backend local en Node para deteccion de CLIs, ejecucion de procesos auxiliares, PTY y parsing de outputs.
+- Los providers se consultan exclusivamente mediante CLIs locales, no mediante APIs externas.
+- El frontend no debe importar modulos de Node; el uso de Node debe quedar limitado a `backend/` y `scripts/`.
+- Imports como `node:fs`, `node:path`, `node:os` o `node:child_process` son modulos nativos del runtime Node. No son dependencias npm y no deben aparecer en `node_modules`.
+
+Resolucion del runtime Node:
+
+1. Usar `MONITORAI_NODE_BIN` si esta definido.
+2. Usar un runtime `node` empaquetado junto a la app si existe.
+3. Buscar `node` o `nodejs` en `PATH`.
+4. Buscar rutas habituales del sistema operativo.
+
+Reglas de instalacion:
+
+- En desarrollo, el usuario debe instalar Node.js 20+ antes de ejecutar `npm install`, `npm test`, `npm run build` o `npm run tauri dev`.
+- En distribucion, la app puede depender de un Node del sistema o empaquetar un runtime propio; la decision debe ser explicita por plataforma.
+- Si se distribuye sin Node empaquetado, las instrucciones de instalacion deben indicar claramente que Node.js 20+ es requisito de ejecucion.
+- Si Node esta instalado en una ruta no estandar, el usuario debe poder fijarlo con `MONITORAI_NODE_BIN`.
+
+Politica recomendada:
+
+- Mantener una estrategia comun de resolucion de Node para los tres sistemas operativos.
+- No depender de wrappers de `node_modules/.bin` para ejecutar la app empaquetada.
+- No introducir dependencias externas para reemplazar modulos nativos de Node cuando el runtime ya los proporciona.
 
 Notas de compatibilidad:
 
@@ -87,6 +119,28 @@ which codex
 which claude
 which gemini
 ```
+
+### macOS
+
+```bash
+which codex
+which claude
+which gemini
+```
+
+Notas macOS:
+
+- La app puede lanzarse desde Finder/Dock con un `PATH` mas limitado que una terminal.
+- La capa de plataforma debe anadir rutas comunes antes de detectar o lanzar CLIs:
+  - `/opt/homebrew/bin`
+  - `/usr/local/bin`
+  - `/opt/local/bin`
+  - `~/.npm-global/bin`
+  - `~/.local/bin`
+  - `~/.cargo/bin`
+  - rutas de gestores de Node usados comunmente para instalar CLIs, como nvm, Volta y asdf
+- La resolucion del runtime Node para el backend debe contemplar Homebrew en Apple Silicon (`/opt/homebrew/bin/node`) ademas de rutas Unix tradicionales.
+- `node-pty` en macOS puede instalar su binario auxiliar `spawn-helper` sin permiso de ejecucion en algunos entornos; antes de abrir una PTY se debe asegurar permiso ejecutable para ese helper si existe.
 
 Si una herramienta esta instalada pero falla al obtener uso, debe mostrarse como detectada con estado no disponible, no como ausente.
 
@@ -533,6 +587,11 @@ Debe generar build para la plataforma actual.
 
 - `.deb` y/o AppImage cuando el entorno Tauri lo permita
 
+### macOS
+
+- `.app`
+- `.dmg` cuando Tauri lo permita en el entorno actual
+
 Comandos base:
 
 ```bash
@@ -561,7 +620,24 @@ sudo apt install -y \
 
 ---
 
-## Contexto operativo para mover el repo a Ubuntu
+## Contexto operativo para mover el repo a macOS o Ubuntu
+
+### macOS
+
+1. Instalar Node.js 20+, Rust y dependencias Tauri habituales.
+2. Instalar `codex`, `claude` y/o `gemini` en una ruta detectable, por ejemplo con Homebrew/npm global.
+3. Verificar que `which codex`, `which claude` y/o `which gemini` devuelven ruta desde terminal.
+4. Ejecutar:
+
+```bash
+npm install
+npm test
+npm run tauri dev
+```
+
+5. Validar manualmente que la app detecta CLIs aunque se lance desde el bundle/Finder, donde `PATH` puede ser mas limitado.
+
+### Ubuntu
 
 Si el repositorio se lleva a una maquina Ubuntu para seguir el desarrollo:
 

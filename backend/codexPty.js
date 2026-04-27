@@ -4,6 +4,7 @@ import os from "node:os";
 import path from "node:path";
 import { getPtyShellLaunch, augmentPath } from "./platform.js";
 import { parseCodexStatus } from "./parser.js";
+import { preparePtyRuntime } from "./ptySupport.js";
 
 const ANSI_PATTERN = /\x1b\[[0-9;?=>]*[ -/]*[@-~]/g;
 const OSC_PATTERN = /\x1b\][^\x07\x1b]*(?:\x07|\x1b\\)/g;
@@ -23,6 +24,7 @@ export function runCodexStatusPty(options = {}) {
     const eventLog = [];
     const launch = getPtyShellLaunch("codex --no-alt-screen");
     const env = augmentPath({ ...process.env });
+    preparePtyRuntime();
 
     const child = pty.spawn(
       launch.file,

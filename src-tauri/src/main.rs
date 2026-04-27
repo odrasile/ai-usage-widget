@@ -15,6 +15,8 @@ use tauri::{
 
 #[cfg(windows)]
 use std::os::windows::process::CommandExt;
+#[cfg(unix)]
+use std::os::unix::fs::PermissionsExt;
 
 #[cfg(windows)]
 const CREATE_NO_WINDOW: u32 = 0x08000000;
@@ -164,7 +166,7 @@ fn resolve_node_binary(resource_root: &Path) -> Result<OsString, String> {
     }
 
     for path in common_system_node_paths() {
-        candidates.push(OsString::from(path));
+        candidates.push(path.into_os_string());
     }
 
     for candidate in candidates {
@@ -183,7 +185,7 @@ fn find_in_path(binary_name: &str) -> Option<OsString> {
     let path_var = env::var_os("PATH")?;
     for directory in env::split_paths(&path_var) {
         let candidate = directory.join(binary_name);
-        if candidate.is_file() {
+        if is_executable_file(&candidate) {
             return Some(candidate.into_os_string());
         }
     }
@@ -191,7 +193,28 @@ fn find_in_path(binary_name: &str) -> Option<OsString> {
 }
 
 fn is_executable(path: &OsString) -> bool {
-    fs::metadata(path).map(|metadata| metadata.is_file()).unwrap_or(false)
+    is_executable_file(Path::new(path))
+}
+
+fn is_executable_file(path: &Path) -> bool {
+    let metadata = match fs::metadata(path) {
+        Ok(metadata) => metadata,
+        Err(_) => return false,
+    };
+
+    if !metadata.is_file() {
+        return false;
+    }
+
+    #[cfg(unix)]
+    {
+        return metadata.permissions().mode() & 0o111 != 0;
+    }
+
+    #[cfg(not(unix))]
+    {
+        true
+    }
 }
 
 fn platform_node_binary_name() -> &'static str {
@@ -218,26 +241,57 @@ fn platform_nodejs_binary_name() -> &'static str {
     }
 }
 
-fn common_system_node_paths() -> Vec<&'static str> {
+fn common_system_node_paths() -> Vec<PathBuf> {
     #[cfg(windows)]
     {
         vec![
-            r"C:\Program Files\nodejs\node.exe",
-            r"C:\Program Files (x86)\nodejs\node.exe",
+            PathBuf::from(r"C:\Program Files\nodejs\node.exe"),
+            PathBuf::from(r"C:\Program Files (x86)\nodejs\node.exe"),
         ]
     }
 
     #[cfg(not(windows))]
     {
-        vec![
-            "/usr/bin/node",
-            "/usr/bin/nodejs",
-            "/usr/local/bin/node",
-            "/usr/local/bin/nodejs",
-            "/bin/node",
-            "/snap/bin/node",
-        ]
+        let mut paths = vec![
+            PathBuf::from("/opt/homebrew/bin/node"),
+            PathBuf::from("/opt/homebrew/bin/nodejs"),
+            PathBuf::from("/usr/bin/node"),
+            PathBuf::from("/usr/bin/nodejs"),
+            PathBuf::from("/usr/local/bin/node"),
+            PathBuf::from("/usr/local/bin/nodejs"),
+            PathBuf::from("/opt/local/bin/node"),
+            PathBuf::from("/opt/local/bin/nodejs"),
+            PathBuf::from("/bin/node"),
+            PathBuf::from("/snap/bin/node"),
+        ];
+
+        if let Some(home) = home_dir() {
+            paths.push(home.join(".volta").join("bin").join("node"));
+            paths.push(home.join(".asdf").join("shims").join("node"));
+            paths.extend(nvm_node_paths(&home));
+        }
+
+        paths
     }
+}
+
+#[cfg(not(windows))]
+fn home_dir() -> Option<PathBuf> {
+    env::var_os("HOME").map(PathBuf::from)
+}
+
+#[cfg(not(windows))]
+fn nvm_node_paths(home: &Path) -> Vec<PathBuf> {
+    let versions_dir = home.join(".nvm").join("versions").join("node");
+    let Ok(entries) = fs::read_dir(versions_dir) else {
+        return Vec::new();
+    };
+
+    entries
+        .filter_map(Result::ok)
+        .map(|entry| entry.path().join("bin").join("node"))
+        .filter(|candidate| candidate.is_file())
+        .collect()
 }
 
 fn project_root() -> Result<PathBuf, String> {

@@ -4,6 +4,7 @@ import os from "node:os";
 import path from "node:path";
 import { getPtyShellLaunch, augmentPath, isWindows } from "./platform.js";
 import { parseGeminiUsage } from "./parser.js";
+import { preparePtyRuntime } from "./ptySupport.js";
 
 const ANSI_PATTERN = /\x1b\[[0-9;?=>]*[ -/]*[@-~]/g;
 const CONPTY_NOISE_PATTERN = /C:\\.*node-pty\\lib\\conpty_console_list_agent\.js[\s\S]*$/i;
@@ -27,6 +28,7 @@ export function runGeminiUsagePty(options = {}) {
     try {
       const launch = getPtyShellLaunch("gemini");
       const env = augmentPath({ ...process.env });
+      preparePtyRuntime();
       child = pty.spawn(launch.file, launch.args, {
         cols: 120,
         rows: 34,
