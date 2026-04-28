@@ -256,6 +256,8 @@ Flujo correcto conocido:
 3. Capturar la salida completa.
 4. Parsear datos de la tabla de estado o mensajes de error.
 
+Para evitar que el sondeo abra dialogos del keyring del sistema, el proceso de Gemini debe lanzarse con `GEMINI_API_KEY=1` cuando el usuario no haya definido ya `GEMINI_API_KEY`. Gemini sigue mostrando la sesion Google y la tabla de quota en ese modo; el valor se usa solo como bypass local del prompt de keyring y no debe persistirse ni aplicarse a otros providers.
+
 Ejemplo de salida real esperada:
 
 ```text

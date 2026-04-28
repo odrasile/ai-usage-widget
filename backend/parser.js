@@ -4,10 +4,10 @@ const CLAUDE_RESET_LABEL = /Rese(?:t?s?)?/i;
 const RESET_CAPTURE = /resets?(?:\s+at|\s+in|:)?\s*([^\n\r)]+?)(?=\s+(?:5h|weekly|week)\b|[\n\r)]|$)/i;
 
 export function parseGeminiUsage(output) {
-  const quotaMatch = output.match(/(\d+(?:\.\d+)?)\s*%\s*used/i);
+  const quotaState = findLastGeminiQuotaState(output);
 
-  if (quotaMatch) {
-    const used = parseFloat(quotaMatch[1]);
+  if (quotaState?.kind === "used") {
+    const used = quotaState.value;
     return {
       primary: {
         percent_left: Math.max(0, 100 - used),
@@ -17,11 +17,7 @@ export function parseGeminiUsage(output) {
     };
   }
 
-  if (
-    /exhausted\s+your\s+capacity/i.test(output)
-    || /RESOURCE_EXHAUSTED/i.test(output)
-    || /\blimit\s+reached\b/i.test(output)
-  ) {
+  if (quotaState?.kind === "limit" || isGeminiExhausted(output)) {
     return {
       primary: {
         percent_left: 0,
@@ -32,6 +28,31 @@ export function parseGeminiUsage(output) {
   }
 
   return null;
+}
+
+function findLastGeminiQuotaState(output) {
+  const pattern = /(\d+(?:\.\d+)?)\s*%\s*used|\blimit\s+reached\b/ig;
+  let latest = null;
+  let match;
+
+  while ((match = pattern.exec(output)) !== null) {
+    if (match[1] !== undefined) {
+      const value = Number(match[1]);
+      if (Number.isFinite(value)) {
+        latest = { kind: "used", value };
+      }
+      continue;
+    }
+
+    latest = { kind: "limit" };
+  }
+
+  return latest;
+}
+
+function isGeminiExhausted(output) {
+  return /exhausted\s+your\s+capacity/i.test(output)
+    || /RESOURCE_EXHAUSTED/i.test(output);
 }
 
 export function parseCodexStatus(output) {

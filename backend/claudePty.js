@@ -5,6 +5,7 @@ import path from "node:path";
 import { getPtyShellLaunch, augmentPath } from "./platform.js";
 import { parseClaudeUsage } from "./parser.js";
 import { preparePtyRuntime } from "./ptySupport.js";
+import { closePtyChild } from "./ptyCleanup.js";
 
 const ANSI_PATTERN = /\x1b\[[0-9;?]*[A-Za-z]/g;
 const CONPTY_NOISE_PATTERN = /C:\\.*node-pty\\lib\\conpty_console_list_agent\.js[\s\S]*$/i;
@@ -50,7 +51,7 @@ export function runClaudeUsagePty(options = {}) {
       return;
     }
 
-    const finish = (ok) => {
+    const finish = async (ok) => {
       if (settled) {
         return;
       }
@@ -59,21 +60,11 @@ export function runClaudeUsagePty(options = {}) {
       clearTimeout(timer);
       usageRetryTimers.forEach(clearTimeout);
 
-      try {
-        eventLog.push(`${timestamp()} WRITE <ESC>`);
-        child.write("\u001b\r");
-      } catch {
-        // Ignore exit signal failures.
-      }
-
-      setTimeout(() => {
-        try {
-          eventLog.push(`${timestamp()} KILL child`);
-          child.kill();
-        } catch {
-          // Process may already be gone.
-        }
-      }, 250);
+      await closePtyChild(child, eventLog, {
+        exitInput: "\u001b\r",
+        killDelayMs: 250,
+        timestamp
+      });
 
       const cleanedOutput = cleanTerminalOutput(output);
       const failureReason = ok ? "" : buildFailureReason(output, usageAttempted);

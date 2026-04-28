@@ -24,6 +24,32 @@ test("parses gemini quota in table format", () => {
   assert.equal(usage.status, "Gemini");
 });
 
+test("parses the latest gemini quota from repeated tty redraws", () => {
+  const output = `
+workspace (/directory) branch sandbox /model quota
+~/development/MonitorAI master no sandbox gemini-3-flash-preview 12% used
+Shift+Tab to accept edits
+workspace (/directory) branch sandbox /model quota
+~/development/MonitorAI master no sandbox gemini-3-flash-preview 19% used
+  `;
+  const usage = parseGeminiUsage(output);
+
+  assert.equal(usage.primary.percent_left, 81);
+});
+
+test("parses latest gemini limit reached over earlier used quota", () => {
+  const output = `
+workspace (/directory) branch sandbox /model quota
+~/development/MonitorAI master no sandbox gemini-3-flash-preview 12% used
+workspace (/directory) branch sandbox /model quota
+~/development/MonitorAI master no sandbox gemini-3-flash-preview limit reached
+  `;
+  const usage = parseGeminiUsage(output);
+
+  assert.equal(usage.primary.percent_left, 0);
+  assert.equal(usage.status, "Gemini (Exhausted)");
+});
+
 test("parses gemini exhausted quota", () => {
   const output = "Attempt 1 failed: You have exhausted your capacity on this model. Your quota will reset after 0s..";
   const usage = parseGeminiUsage(output);

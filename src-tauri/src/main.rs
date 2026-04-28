@@ -6,7 +6,9 @@ use std::collections::HashMap;
 use std::fs;
 use std::io::Write;
 use std::path::{Path, PathBuf};
-use std::process::Command;
+use std::process::{Command, Output, Stdio};
+use std::thread;
+use std::time::{Duration, Instant};
 use tauri::{
     webview::PageLoadEvent,
     menu::{Menu, MenuItem},
@@ -21,6 +23,7 @@ use std::os::unix::fs::PermissionsExt;
 
 #[cfg(windows)]
 const CREATE_NO_WINDOW: u32 = 0x08000000;
+const BACKEND_COMMAND_TIMEOUT: Duration = Duration::from_secs(70);
 
 #[derive(Clone, serde::Serialize, serde::Deserialize)]
 struct WindowState {
@@ -155,15 +158,55 @@ fn run_backend_json_command(
     #[cfg(windows)]
     command.creation_flags(CREATE_NO_WINDOW);
 
-    let output = command
-        .output()
-        .map_err(|error| format!("Unable to run Node backend: {error}"))?;
+    let output = run_backend_command_with_timeout(command, BACKEND_COMMAND_TIMEOUT)?;
 
     if !output.status.success() {
         return Err(String::from_utf8_lossy(&output.stderr).trim().to_string());
     }
 
     serde_json::from_slice(&output.stdout).map_err(|error| format!("Invalid backend JSON: {error}"))
+}
+
+fn run_backend_command_with_timeout(
+    mut command: Command,
+    timeout: Duration,
+) -> Result<Output, String> {
+    let mut child = command
+        .stdout(Stdio::piped())
+        .stderr(Stdio::piped())
+        .spawn()
+        .map_err(|error| format!("Unable to run Node backend: {error}"))?;
+
+    let start = Instant::now();
+    loop {
+        match child.try_wait() {
+            Ok(Some(_status)) => {
+                return child
+                    .wait_with_output()
+                    .map_err(|error| format!("Unable to collect Node backend output: {error}"));
+            }
+            Ok(None) => {
+                if start.elapsed() >= timeout {
+                    let _ = child.kill();
+                    let output = child
+                        .wait_with_output()
+                        .map_err(|error| format!("Unable to collect timed-out Node backend output: {error}"))?;
+                    let stderr = String::from_utf8_lossy(&output.stderr).trim().to_string();
+                    return Err(if stderr.is_empty() {
+                        format!("Node backend timed out after {}s", timeout.as_secs())
+                    } else {
+                        format!("Node backend timed out after {}s: {stderr}", timeout.as_secs())
+                    });
+                }
+                thread::sleep(Duration::from_millis(50));
+            }
+            Err(error) => {
+                let _ = child.kill();
+                let _ = child.wait();
+                return Err(format!("Unable to wait for Node backend: {error}"));
+            }
+        }
+    }
 }
 
 fn resolve_node_binary(resource_root: &Path) -> Result<OsString, String> {

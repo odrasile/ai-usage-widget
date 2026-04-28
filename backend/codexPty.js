@@ -5,6 +5,7 @@ import path from "node:path";
 import { getPtyShellLaunch, augmentPath } from "./platform.js";
 import { parseCodexStatus } from "./parser.js";
 import { preparePtyRuntime } from "./ptySupport.js";
+import { closePtyChild } from "./ptyCleanup.js";
 
 const ANSI_PATTERN = /\x1b\[[0-9;?=>]*[ -/]*[@-~]/g;
 const OSC_PATTERN = /\x1b\][^\x07\x1b]*(?:\x07|\x1b\\)/g;
@@ -38,7 +39,7 @@ export function runCodexStatusPty(options = {}) {
     );
     eventLog.push(`${timestamp()} SPAWN codex`);
 
-    const finish = (ok) => {
+    const finish = async (ok) => {
       if (settled) {
         return;
       }
@@ -55,13 +56,11 @@ export function runCodexStatusPty(options = {}) {
         clearTimeout(settleTimer);
       }
 
-      try {
-        eventLog.push(`${timestamp()} WRITE /quit`);
-        child.write("/quit\r");
-        child.kill();
-      } catch {
-        // Process may already be gone.
-      }
+      await closePtyChild(child, eventLog, {
+        exitInput: "/quit\r",
+        killDelayMs: 100,
+        timestamp
+      });
 
       const cleanedOutput = cleanTerminalOutput(output);
       const failureReason = ok ? "" : buildFailureReason(output);

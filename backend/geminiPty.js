@@ -5,11 +5,13 @@ import path from "node:path";
 import { getPtyShellLaunch, augmentPath, isWindows } from "./platform.js";
 import { parseGeminiUsage } from "./parser.js";
 import { preparePtyRuntime } from "./ptySupport.js";
+import { closePtyChild } from "./ptyCleanup.js";
 
 const ANSI_PATTERN = /\x1b\[[0-9;?=>]*[ -/]*[@-~]/g;
 const CONPTY_NOISE_PATTERN = /C:\\.*node-pty\\lib\\conpty_console_list_agent\.js[\s\S]*$/i;
 const OSC_PATTERN = /\x1b\][^\x07\x1b]*(?:\x07|\x1b\\)/g;
 const SINGLE_ESC_PATTERN = /\x1b[@-_]/g;
+const GEMINI_KEYRING_BYPASS_VALUE = "1";
 
 export function runGeminiUsagePty(options = {}) {
   const timeoutMs = options.timeoutMs ?? 30_000;
@@ -27,7 +29,7 @@ export function runGeminiUsagePty(options = {}) {
 
     try {
       const launch = getPtyShellLaunch("gemini");
-      const env = augmentPath({ ...process.env });
+      const env = getGeminiEnv(process.env);
       preparePtyRuntime();
       child = pty.spawn(launch.file, launch.args, {
         cols: 120,
@@ -55,7 +57,7 @@ export function runGeminiUsagePty(options = {}) {
       return;
     }
 
-    const finish = (ok) => {
+    const finish = async (ok) => {
       if (settled) {
         return;
       }
@@ -64,21 +66,11 @@ export function runGeminiUsagePty(options = {}) {
       clearTimeout(timer);
       clearTimeout(minWaitTimer);
 
-      try {
-        eventLog.push(`${timestamp()} WRITE <ESC>`);
-        child.write("\u001b\r");
-      } catch {
-        // Ignore exit signal failures.
-      }
-
-      setTimeout(() => {
-        try {
-          eventLog.push(`${timestamp()} KILL child`);
-          child.kill();
-        } catch {
-          // Process may already be gone.
-        }
-      }, 250);
+      await closePtyChild(child, eventLog, {
+        exitInput: "\u001b\r",
+        killDelayMs: 250,
+        timestamp
+      });
 
       const cleanedOutput = cleanTerminalOutput(output);
       const failureReason = ok ? "" : buildFailureReason(output);
@@ -220,4 +212,11 @@ function truncate(value, maxLength) {
 
 function timestamp() {
   return new Date().toISOString();
+}
+
+export function getGeminiEnv(baseEnv = process.env) {
+  return augmentPath({
+    ...baseEnv,
+    GEMINI_API_KEY: baseEnv.GEMINI_API_KEY || GEMINI_KEYRING_BYPASS_VALUE
+  });
 }
