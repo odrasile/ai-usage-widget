@@ -107,10 +107,12 @@ Nota: los puntos de esta fase quedan configurados en GitHub Actions; la generaci
 
 ### Ubuntu
 
-- [ ] Generar `.deb` y/o AppImage.
-- [ ] Validar dependencias runtime requeridas.
+- [x] Generar `.deb` y/o AppImage.
+  Resultado local: se generaron `.deb`, `.rpm` y `.AppImage` con `npm run tauri:build`.
+- [x] Validar dependencias runtime requeridas.
+  Resultado local: `ldd` resolvio las dependencias nativas principales del binario generado; no se detectaron librerias faltantes en este entorno Ubuntu.
 - [ ] Validar comportamiento de bandeja del sistema.
-- [ ] Documentar limitaciones de transparencia en Linux/WebKitGTK.
+- [x] Documentar limitaciones de transparencia en Linux/WebKitGTK.
 
 ### macOS
 
@@ -121,10 +123,10 @@ Nota: los puntos de esta fase quedan configurados en GitHub Actions; la generaci
 
 ## Fase 7: Preparacion De Publicacion Git
 
-- [ ] Revisar nombre del producto, descripcion y licencia.
-- [ ] Revisar `package.json`.
-- [ ] Revisar `src-tauri/tauri.conf.json`.
-- [ ] Revisar `LICENSE`, `SECURITY.md`, `CONTRIBUTING.md`.
+- [x] Revisar nombre del producto, descripcion y licencia.
+- [x] Revisar `package.json`.
+- [x] Revisar `src-tauri/tauri.conf.json`.
+- [x] Revisar `LICENSE`, `SECURITY.md`, `CONTRIBUTING.md`.
 - [ ] Crear commits pequenos y revisables:
   - documentacion multiplataforma
   - limpieza de repo
@@ -143,5 +145,7 @@ Nota: los puntos de esta fase quedan configurados en GitHub Actions; la generaci
   Decision: la primera release no firma ni notariza instaladores. README y release notes deben documentar posibles avisos de SmartScreen y Gatekeeper.
 - [x] Decidir si se conservan iconos Android/iOS generados por Tauri.
   Decision: se conservan; especialmente los iconos iOS son necesarios para el empaquetado macOS.
-- [ ] Decidir nombre final del repositorio remoto.
-- [ ] Decidir si `bundle.targets = "all"` se mantiene o se fija por plataforma en CI.
+- [x] Decidir nombre final del repositorio remoto.
+  Decision: el repositorio remoto se llamara `ai-usage-widget`.
+- [x] Decidir si `bundle.targets = "all"` se mantiene o se fija por plataforma en CI.
+  Decision: se mantiene `bundle.targets = "all"` para `v0.1.0`. Cada runner nativo genera los bundles que Tauri soporte en su plataforma.
