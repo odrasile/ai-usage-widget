@@ -474,6 +474,21 @@ async function refreshAllProviders(): Promise<void> {
 
     await Promise.allSettled(detectedProviders.map(async (providerName) => {
       const previous = previousByProvider.get(providerName);
+      
+      if (!isProviderVisible(providerName, appConfig.provider_visibility)) {
+        updateProviderResult(providerName, {
+          ...(previous || {
+            provider: providerName,
+            available: false,
+            refreshing: false,
+            usage: null,
+            status: text.usingCachedData
+          }),
+          refreshing: false
+        });
+        return;
+      }
+
       const providerResult = await getProviderUsage(providerName).catch((error: unknown) => {
         const message = error instanceof Error ? error.message : String(error);
         return {

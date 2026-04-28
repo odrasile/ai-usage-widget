@@ -383,7 +383,7 @@ El widget incluye un panel de configuracion accesible mediante un icono de tuerc
   - **Recursos Libres**: Enfoque de capacidad. Las barras representan el espacio disponible; comienzan llenas y se vacían hacia la izquierda a medida que se consume el recurso. Las etiquetas cambian a "Libre 5h" / "Libre Semanal". El color escala de Verde (mucha capacidad libre) a Rojo (poca capacidad libre).
 - **Visibilidad por Provider**: El panel muestra una casilla por cada CLI detectado para activar o desactivar su renderizado en el widget.
   - La visibilidad se guarda localmente junto al resto de ajustes.
-  - Ocultar un provider no desactiva su refresh ni borra su ultimo dato conocido; solo lo excluye del render.
+  - Ocultar un provider desactiva su refresh automático para evitar consultas innecesarias de cuota; se mantiene su último dato conocido si existía.
   - Todo provider detectado nuevo se considera visible por defecto.
   - Si todos los providers quedan ocultos, la UI muestra un estado vacio especifico de "no providers visible" en lugar de simular que no hay CLIs detectadas.
 - **Diseño y Visibilidad**:
