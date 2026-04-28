@@ -2,6 +2,8 @@
 
 Widget desktop para macOS, Windows y Ubuntu que muestra el uso disponible de Codex, Claude Code y Gemini usando sus CLIs locales.
 
+![AI Usage Widget screenshot](docs/images/widget-screenshot.svg)
+
 ## Estado del repositorio
 
 - Licencia: MIT
