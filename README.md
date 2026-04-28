@@ -19,13 +19,14 @@ El repositorio queda preparado para publicarse con:
 - `CONTRIBUTING.md`
 - `SECURITY.md`
 - plantillas basicas de issues y pull request en `.github/`
+- workflows de CI y release en `.github/workflows/`
 
 ## Requisitos
 
 - macOS, Windows o Ubuntu
 - Node.js 20 o superior
 - Rust y Cargo para compilar Tauri
-- CLI `codex` y/o `claude` instaladas si se quieren ver datos reales
+- CLI `codex`, `claude` y/o `gemini` instaladas si se quieren ver datos reales
 
 ### Politica de Node.js
 
@@ -76,28 +77,40 @@ En macOS la app puede arrancar desde Finder/Dock con un `PATH` distinto al de la
 
 Si Node no esta en una ruta del sistema, define `MONITORAI_NODE_BIN` con la ruta absoluta del binario `node`.
 
-## Instalacion
+## Instalacion local
 
 ```bash
-npm install
+npm ci
 ```
+
+Usa `npm install` solo cuando vayas a actualizar dependencias y regenerar `package-lock.json`.
 
 ## Desarrollo
 
 ```bash
-npm run tauri dev
+npm run tauri:dev
 ```
 
 La ventana se abre como widget flotante, sin bordes y siempre visible.
 
 En Windows la transparencia del widget es un objetivo razonable. En Linux no debe asumirse transparencia real: Tauri depende de WebKitGTK y el resultado final tambien depende del compositor y del entorno grafico. El fallback soportado en Linux es un panel oscuro estable y legible.
 
-## Build
+## Validacion local
+
+```bash
+npm test
+npm run build
+cargo check --manifest-path src-tauri/Cargo.toml
+```
+
+## Build local
+
+El build local genera bundles para la plataforma actual. No es una estrategia de cross-compilacion completa.
 
 ### Windows
 
 ```bash
-npm run tauri build
+npm run tauri:build
 ```
 
 El ejecutable se genera bajo `src-tauri/target/release/bundle`.
@@ -107,7 +120,7 @@ No distribuyas solo el `.exe` suelto movido a otra carpeta. La app necesita recu
 ### Ubuntu
 
 ```bash
-npm run tauri build
+npm run tauri:build
 ```
 
 En Ubuntu el bundle saldra bajo `src-tauri/target/release/bundle`, normalmente como `.deb` y/o AppImage segun tu entorno.
@@ -115,10 +128,22 @@ En Ubuntu el bundle saldra bajo `src-tauri/target/release/bundle`, normalmente c
 ### macOS
 
 ```bash
-npm run tauri build
+npm run tauri:build
 ```
 
 En macOS el bundle saldra bajo `src-tauri/target/release/bundle`, normalmente como `.app` y/o `.dmg` segun tu entorno.
+
+## Releases e instaladores
+
+Los instaladores deben generarse en sistemas nativos o en runners CI equivalentes:
+
+- Windows: `windows-latest`
+- Ubuntu: `ubuntu-latest`
+- macOS: `macos-latest`
+
+El workflow de release se dispara con tags `v*` y sube los bundles generados por Tauri a GitHub Releases.
+
+La primera distribucion puede publicarse sin firma ni notarizacion. En ese caso deben esperarse avisos de SmartScreen en Windows y Gatekeeper en macOS.
 
 ## Configuracion opcional
 
@@ -136,9 +161,9 @@ El valor se limita entre 30 y 120 segundos.
 
 - `npm run dev`: servidor Vite del frontend
 - `npm run build`: compila TypeScript y genera `dist`
-- `npm run tauri dev`: ejecuta la app Tauri
-- `npm run tauri build`: genera build Windows
-- `npm run tauri build`: genera build para la plataforma actual
+- `npm run tauri:dev`: ejecuta la app Tauri en modo desarrollo
+- `npm run tauri:build`: genera build para la plataforma actual
+- `npm run tauri -- <args>`: passthrough directo al CLI de Tauri mediante el wrapper local
 - `npm test`: valida parsers con outputs simulados
 
 ## Seguridad

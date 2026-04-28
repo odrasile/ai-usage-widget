@@ -2,11 +2,12 @@
 
 use std::env;
 use std::ffi::OsString;
-use std::collections::HashMap;
+use std::collections::{HashMap, HashSet};
 use std::fs;
 use std::io::Write;
 use std::path::{Path, PathBuf};
-use std::process::{Command, Output, Stdio};
+use std::process::{Child, Command, Output, Stdio};
+use std::sync::{Mutex, OnceLock};
 use std::thread;
 use std::time::{Duration, Instant};
 use tauri::{
@@ -19,11 +20,16 @@ use tauri::{
 #[cfg(windows)]
 use std::os::windows::process::CommandExt;
 #[cfg(unix)]
+use std::os::unix::process::CommandExt as UnixCommandExt;
+#[cfg(unix)]
 use std::os::unix::fs::PermissionsExt;
 
 #[cfg(windows)]
 const CREATE_NO_WINDOW: u32 = 0x08000000;
+#[cfg(windows)]
+const CREATE_NEW_PROCESS_GROUP: u32 = 0x00000200;
 const BACKEND_COMMAND_TIMEOUT: Duration = Duration::from_secs(70);
+static ACTIVE_BACKEND_CHILDREN: OnceLock<Mutex<HashSet<u32>>> = OnceLock::new();
 
 #[derive(Clone, serde::Serialize, serde::Deserialize)]
 struct WindowState {
@@ -116,6 +122,12 @@ fn append_window_debug_log(app: AppHandle, message: String) -> Result<(), String
         .map_err(|error| format!("Unable to append debug log: {error}"))
 }
 
+#[tauri::command]
+fn quit_app(app: AppHandle) {
+    kill_active_backend_children();
+    app.exit(0);
+}
+
 fn run_backend_snapshot(backend: BackendPaths) -> Result<serde_json::Value, String> {
     run_backend_json_command(backend, "snapshot", None)
 }
@@ -156,7 +168,9 @@ fn run_backend_json_command(
     }
 
     #[cfg(windows)]
-    command.creation_flags(CREATE_NO_WINDOW);
+    command.creation_flags(CREATE_NO_WINDOW | CREATE_NEW_PROCESS_GROUP);
+    #[cfg(unix)]
+    command.process_group(0);
 
     let output = run_backend_command_with_timeout(command, BACKEND_COMMAND_TIMEOUT)?;
 
@@ -176,23 +190,25 @@ fn run_backend_command_with_timeout(
         .stderr(Stdio::piped())
         .spawn()
         .map_err(|error| format!("Unable to run Node backend: {error}"))?;
+    let child_pid = child.id();
+    register_backend_child(child_pid);
 
     let start = Instant::now();
-    loop {
+    let result = loop {
         match child.try_wait() {
             Ok(Some(_status)) => {
-                return child
+                break child
                     .wait_with_output()
                     .map_err(|error| format!("Unable to collect Node backend output: {error}"));
             }
             Ok(None) => {
                 if start.elapsed() >= timeout {
-                    let _ = child.kill();
+                    terminate_backend_child(&mut child, child_pid);
                     let output = child
                         .wait_with_output()
                         .map_err(|error| format!("Unable to collect timed-out Node backend output: {error}"))?;
                     let stderr = String::from_utf8_lossy(&output.stderr).trim().to_string();
-                    return Err(if stderr.is_empty() {
+                    break Err(if stderr.is_empty() {
                         format!("Node backend timed out after {}s", timeout.as_secs())
                     } else {
                         format!("Node backend timed out after {}s: {stderr}", timeout.as_secs())
@@ -201,11 +217,78 @@ fn run_backend_command_with_timeout(
                 thread::sleep(Duration::from_millis(50));
             }
             Err(error) => {
-                let _ = child.kill();
+                terminate_backend_child(&mut child, child_pid);
                 let _ = child.wait();
-                return Err(format!("Unable to wait for Node backend: {error}"));
+                break Err(format!("Unable to wait for Node backend: {error}"));
             }
         }
+    };
+
+    unregister_backend_child(child_pid);
+    result
+}
+
+fn active_backend_children() -> &'static Mutex<HashSet<u32>> {
+    ACTIVE_BACKEND_CHILDREN.get_or_init(|| Mutex::new(HashSet::new()))
+}
+
+fn register_backend_child(pid: u32) {
+    if let Ok(mut children) = active_backend_children().lock() {
+        children.insert(pid);
+    }
+}
+
+fn unregister_backend_child(pid: u32) {
+    if let Ok(mut children) = active_backend_children().lock() {
+        children.remove(&pid);
+    }
+}
+
+fn kill_active_backend_children() {
+    let pids = active_backend_children()
+        .lock()
+        .map(|children| children.iter().copied().collect::<Vec<_>>())
+        .unwrap_or_default();
+
+    for pid in pids {
+        kill_backend_process_tree(pid);
+    }
+}
+
+fn terminate_backend_child(child: &mut Child, pid: u32) {
+    kill_backend_process_tree(pid);
+    let _ = child.kill();
+}
+
+fn kill_backend_process_tree(pid: u32) {
+    #[cfg(unix)]
+    {
+        let _ = Command::new("kill")
+            .arg("-TERM")
+            .arg(format!("-{pid}"))
+            .stdout(Stdio::null())
+            .stderr(Stdio::null())
+            .status();
+        thread::sleep(Duration::from_millis(150));
+        let _ = Command::new("kill")
+            .arg("-KILL")
+            .arg(format!("-{pid}"))
+            .stdout(Stdio::null())
+            .stderr(Stdio::null())
+            .status();
+    }
+
+    #[cfg(windows)]
+    {
+        let _ = Command::new("taskkill")
+            .arg("/PID")
+            .arg(pid.to_string())
+            .arg("/T")
+            .arg("/F")
+            .creation_flags(CREATE_NO_WINDOW)
+            .stdout(Stdio::null())
+            .stderr(Stdio::null())
+            .status();
     }
 }
 
@@ -498,7 +581,10 @@ fn setup_tray(app: &AppHandle) -> tauri::Result<()> {
         .show_menu_on_left_click(false)
         .on_menu_event(|app, event| match event.id().as_ref() {
             "show" => show_main_window(app),
-            "quit" => app.exit(0),
+            "quit" => {
+                kill_active_backend_children();
+                app.exit(0);
+            }
             _ => {}
         })
         .on_tray_icon_event(|tray, event| {
@@ -566,7 +652,8 @@ fn main() {
             save_window_state,
             load_app_config,
             save_app_config,
-            append_window_debug_log
+            append_window_debug_log,
+            quit_app
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

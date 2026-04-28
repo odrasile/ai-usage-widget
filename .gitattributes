@@ -4,4 +4,8 @@
 *.ico binary
 *.exe binary
 *.dll binary
+*.msi binary
+*.dmg binary
+*.deb binary
+*.rpm binary
 *.AppImage binary

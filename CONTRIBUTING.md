@@ -15,12 +15,21 @@ This project is intentionally small. Changes should keep the widget simple, loca
 ## Local Setup
 
 ```bash
-npm install
+npm ci
 npm test
-npm run tauri:dev
+npm run build
+cargo check --manifest-path src-tauri/Cargo.toml
 ```
 
 For Linux builds, install the Tauri/WebKitGTK dependencies described in [README.md](./README.md).
+
+Start the desktop app in development mode with:
+
+```bash
+npm run tauri:dev
+```
+
+Use `npm install` only when intentionally updating dependencies and regenerating `package-lock.json`.
 
 ## Pull Requests
 

@@ -47,6 +47,10 @@ export async function appendWindowDebugLog(message: string): Promise<void> {
   await invoke("append_window_debug_log", { message });
 }
 
+export async function quitApp(): Promise<void> {
+  await invoke("quit_app");
+}
+
 function withTimeout<T>(promise: Promise<T>, timeoutMs: number): Promise<T> {
   return new Promise((resolve, reject) => {
     const timer = window.setTimeout(() => {

@@ -732,7 +732,7 @@ Si no es posible recuperar el estado de la sesion de desarrollo anterior, este f
 La aplicacion ejecutable debe:
 
 1. Lanzarse sin consola visible en Windows y de forma nativa en Ubuntu.
-2. Detectar Codex y Claude si estan instalados.
+2. Detectar Codex, Claude y Gemini si estan instalados.
 3. Obtener uso con los flujos correctos por provider.
 4. Mostrar widget flotante.
 5. Mostrar limite principal y semanal cuando existan.
@@ -740,4 +740,4 @@ La aplicacion ejecutable debe:
 7. Permitir refresco manual.
 8. Ocultarse/restaurarse desde bandeja cuando la plataforma lo soporte adecuadamente.
 9. Mostrar textos en espanol o ingles segun idioma del sistema.
-10. Poder extenderse a Gemini u otros CLIs sin rehacer la base.
+10. Poder extenderse a otros CLIs sin rehacer la base.

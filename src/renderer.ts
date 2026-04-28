@@ -1,6 +1,7 @@
 import type { AppConfig, AppMetadata, ProviderUsage, UsageSnapshot, ViewMode } from "./types";
 import { getCurrentWindow } from "@tauri-apps/api/window";
 import type { Messages } from "./i18n";
+import { quitApp } from "./tauri";
 
 type ResizeDirection = "East" | "North" | "NorthEast" | "NorthWest" | "South" | "SouthEast" | "SouthWest" | "West";
 
@@ -244,7 +245,7 @@ function createShell(
     void getCurrentWindow().startDragging();
   });
   header.querySelector(".window-close")?.addEventListener("click", () => {
-    void getCurrentWindow().close();
+    void quitApp();
   });
   header.querySelector(".window-hide")?.addEventListener("click", () => {
     void getCurrentWindow().hide();
