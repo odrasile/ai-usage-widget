@@ -466,16 +466,28 @@ fn resolve_backend(app: &AppHandle, project_root: &Path) -> Result<BackendPaths,
         .path()
         .resource_dir()
         .map_err(|error| format!("Unable to resolve resource directory: {error}"))?;
-    let resource_entry = resource_root.join("backend").join("index.js");
 
-    if resource_entry.exists() {
-        Ok(BackendPaths {
-            entry: resource_entry,
-            root: resource_root,
-        })
-    } else {
-        Err("Backend entry not found".to_string())
+    for candidate_root in backend_resource_roots(&resource_root) {
+        let candidate_entry = candidate_root.join("backend").join("index.js");
+        if candidate_entry.exists() {
+            return Ok(BackendPaths {
+                entry: candidate_entry,
+                root: candidate_root,
+            });
+        }
     }
+
+    Err(format!(
+        "Backend entry not found in resource directory: {}",
+        resource_root.display()
+    ))
+}
+
+fn backend_resource_roots(resource_root: &Path) -> Vec<PathBuf> {
+    vec![
+        resource_root.to_path_buf(),
+        resource_root.join("_up_"),
+    ]
 }
 
 fn show_main_window(app: &AppHandle) {
