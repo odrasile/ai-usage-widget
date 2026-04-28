@@ -133,8 +133,9 @@ Nota: los puntos de esta fase quedan configurados en GitHub Actions; la generaci
   - CI/release
 - [ ] Crear repositorio remoto.
 - [x] Subir rama principal.
-- [ ] Crear tag inicial `v0.1.0`.
+- [x] Crear tag inicial `v0.1.0`.
 - [ ] Ejecutar workflow de release.
+  Estado: tag `v0.1.0` subido; pendiente verificar resultado de GitHub Actions.
 - [ ] Probar instaladores generados antes de anunciar la release.
 
 ## Decisiones Pendientes
