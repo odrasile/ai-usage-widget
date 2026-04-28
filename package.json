@@ -14,7 +14,7 @@
     "tauri:probe:clear": "node scripts/tauri-preflight.mjs && env VITE_TRANSPARENCY_PROBE=clear node scripts/run-tauri.mjs dev",
     "tauri:probe:panel": "node scripts/tauri-preflight.mjs && env VITE_TRANSPARENCY_PROBE=panel node scripts/run-tauri.mjs dev",
     "tauri:probe:solid": "node scripts/tauri-preflight.mjs && env VITE_TRANSPARENCY_PROBE=solid node scripts/run-tauri.mjs dev",
-    "test": "node --test backend/*.test.js"
+    "test": "node --test backend"
   },
   "dependencies": {
     "@tauri-apps/api": "^2.0.0",
