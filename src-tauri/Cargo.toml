@@ -1,6 +1,6 @@
 [package]
 name = "ai-usage-widget"
-version = "0.1.1"
+version = "0.1.2"
 description = "Floating desktop widget for AI coding CLI usage"
 authors = ["Elisardo González Agulla"]
 edition = "2021"
