@@ -134,8 +134,8 @@ Nota: los puntos de esta fase quedan configurados en GitHub Actions; la generaci
 - [ ] Crear repositorio remoto.
 - [x] Subir rama principal.
 - [x] Crear tag inicial `v0.1.0`.
-- [ ] Ejecutar workflow de release.
-  Estado: tag `v0.1.0` subido; pendiente verificar resultado de GitHub Actions.
+- [x] Ejecutar workflow de release.
+  Resultado: `v0.1.0` genero correctamente assets Windows, Ubuntu y macOS en GitHub Releases.
 - [ ] Probar instaladores generados antes de anunciar la release.
 
 ## Decisiones Pendientes
