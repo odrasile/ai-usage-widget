@@ -155,7 +155,21 @@ fn run_backend_json_command(
     command_name: &str,
     provider: Option<String>,
 ) -> Result<serde_json::Value, String> {
-    let node_binary = resolve_node_binary(&backend.root)?;
+    if !backend.entry.is_file() {
+        return Err(format!(
+            "Backend entry is not a file: {}",
+            backend.entry.display()
+        ));
+    }
+
+    if !backend.root.is_dir() {
+        return Err(format!(
+            "Backend root is not a directory: {}",
+            backend.root.display()
+        ));
+    }
+
+    let node_binary = normalize_path_for_child(PathBuf::from(resolve_node_binary(&backend.root)?));
     let mut command = Command::new(&node_binary);
     command
         .arg(&backend.entry)
@@ -164,7 +178,7 @@ fn run_backend_json_command(
         .current_dir(&backend.root)
         .env("AI_USAGE_WIDGET_CLI_CWD", &backend.cli_cwd);
 
-    if let Some(provider) = provider {
+    if let Some(ref provider) = provider {
         command.arg(provider);
     }
 
@@ -173,10 +187,18 @@ fn run_backend_json_command(
     #[cfg(unix)]
     command.process_group(0);
 
+    append_backend_launch_log(&node_binary, &backend, command_name, provider.as_deref());
+
     let output = run_backend_command_with_timeout(command, BACKEND_COMMAND_TIMEOUT)?;
 
     if !output.status.success() {
-        return Err(String::from_utf8_lossy(&output.stderr).trim().to_string());
+        let stderr = String::from_utf8_lossy(&output.stderr).trim().to_string();
+        let stdout = String::from_utf8_lossy(&output.stdout).trim().to_string();
+        return Err(if stdout.is_empty() {
+            stderr
+        } else {
+            format!("{stderr}\nstdout: {stdout}")
+        });
     }
 
     serde_json::from_slice(&output.stdout).map_err(|error| format!("Invalid backend JSON: {error}"))
@@ -460,8 +482,8 @@ fn resolve_backend(app: &AppHandle, project_root: &Path) -> Result<BackendPaths,
     let dev_entry = project_root.join("backend").join("index.js");
     if dev_entry.exists() {
         return Ok(BackendPaths {
-            entry: dev_entry,
-            root: project_root.to_path_buf(),
+            entry: normalize_path_for_child(dev_entry),
+            root: normalize_path_for_child(project_root.to_path_buf()),
             cli_cwd,
         });
     }
@@ -475,8 +497,8 @@ fn resolve_backend(app: &AppHandle, project_root: &Path) -> Result<BackendPaths,
         let candidate_entry = candidate_root.join("backend").join("index.js");
         if candidate_entry.exists() {
             return Ok(BackendPaths {
-                entry: candidate_entry,
-                root: candidate_root,
+                entry: normalize_path_for_child(candidate_entry),
+                root: normalize_path_for_child(candidate_root),
                 cli_cwd,
             });
         }
@@ -503,7 +525,52 @@ fn resolve_cli_workspace(app: &AppHandle) -> Result<PathBuf, String> {
     let cli_workspace = app_data_dir.join("cli-workspace");
     fs::create_dir_all(&cli_workspace)
         .map_err(|error| format!("Unable to create CLI workspace: {error}"))?;
-    Ok(cli_workspace)
+    Ok(normalize_path_for_child(cli_workspace))
+}
+
+fn normalize_path_for_child(path: PathBuf) -> PathBuf {
+    #[cfg(windows)]
+    {
+        let value = path.as_os_str().to_string_lossy();
+        if let Some(stripped) = value.strip_prefix(r"\\?\UNC\") {
+            return PathBuf::from(format!(r"\\{stripped}"));
+        }
+
+        if let Some(stripped) = value.strip_prefix(r"\\?\") {
+            return PathBuf::from(stripped);
+        }
+    }
+
+    path
+}
+
+fn append_backend_launch_log(
+    node_binary: &Path,
+    backend: &BackendPaths,
+    command_name: &str,
+    provider: Option<&str>,
+) {
+    let log_dir = env::temp_dir().join("ai-usage-widget");
+    if fs::create_dir_all(&log_dir).is_err() {
+        return;
+    }
+
+    let log_path = log_dir.join("backend-launch.log");
+    let mut file = match fs::OpenOptions::new().create(true).append(true).open(log_path) {
+        Ok(file) => file,
+        Err(_) => return,
+    };
+
+    let _ = writeln!(
+        file,
+        "node={} entry={} root={} cli_cwd={} command={} provider={}",
+        node_binary.display(),
+        backend.entry.display(),
+        backend.root.display(),
+        backend.cli_cwd.display(),
+        command_name,
+        provider.unwrap_or("")
+    );
 }
 
 fn show_main_window(app: &AppHandle) {
