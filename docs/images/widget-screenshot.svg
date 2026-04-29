@@ -1,65 +1,14 @@
-<svg width="920" height="520" viewBox="0 0 920 520" fill="none" xmlns="http://www.w3.org/2000/svg" role="img" aria-labelledby="title desc">
-  <title id="title">AI Usage Widget screenshot</title>
-  <desc id="desc">Floating desktop widget showing usage bars for Codex, Claude Code and Gemini.</desc>
-  <rect width="920" height="520" fill="#10151d"/>
-  <radialGradient id="glowA" cx="0" cy="0" r="1" gradientUnits="userSpaceOnUse" gradientTransform="translate(130 80) rotate(37) scale(520 340)">
-    <stop stop-color="#264c57" stop-opacity="0.75"/>
-    <stop offset="1" stop-color="#10151d" stop-opacity="0"/>
-  </radialGradient>
-  <radialGradient id="glowB" cx="0" cy="0" r="1" gradientUnits="userSpaceOnUse" gradientTransform="translate(790 430) rotate(160) scale(520 300)">
-    <stop stop-color="#3b3320" stop-opacity="0.7"/>
-    <stop offset="1" stop-color="#10151d" stop-opacity="0"/>
-  </radialGradient>
-  <rect width="920" height="520" fill="url(#glowA)"/>
-  <rect width="920" height="520" fill="url(#glowB)"/>
-
-  <g filter="url(#shadow)">
-    <rect x="190" y="72" width="540" height="374" rx="24" fill="#111820"/>
-    <rect x="190.75" y="72.75" width="538.5" height="372.5" rx="23.25" stroke="#2d3a47" stroke-width="1.5"/>
-  </g>
-
-  <rect x="214" y="96" width="492" height="48" rx="14" fill="#17212b"/>
-  <text x="238" y="126" fill="#f5f7fb" font-family="ui-sans-serif, system-ui, -apple-system, Segoe UI, sans-serif" font-size="18" font-weight="700">AI Usage Widget</text>
-  <circle cx="585" cy="120" r="13" fill="#22303d"/>
-  <text x="580" y="126" fill="#8fa1b2" font-family="ui-sans-serif, system-ui, -apple-system, Segoe UI, sans-serif" font-size="17" font-weight="700">i</text>
-  <circle cx="622" cy="120" r="13" fill="#22303d"/>
-  <path d="M622 112v16M614 120h16" stroke="#8fa1b2" stroke-width="2" stroke-linecap="round"/>
-  <circle cx="659" cy="120" r="13" fill="#22303d"/>
-  <path d="M652 120h14" stroke="#8fa1b2" stroke-width="2" stroke-linecap="round"/>
-  <circle cx="690" cy="120" r="13" fill="#34242a"/>
-  <path d="M685 115l10 10M695 115l-10 10" stroke="#ff8a9a" stroke-width="2" stroke-linecap="round"/>
-
-  <g transform="translate(214 166)">
-    <rect width="492" height="76" rx="16" fill="#17212b"/>
-    <text x="20" y="29" fill="#f5f7fb" font-family="ui-sans-serif, system-ui, -apple-system, Segoe UI, sans-serif" font-size="16" font-weight="700">Codex</text>
-    <text x="416" y="29" fill="#4fc978" font-family="ui-sans-serif, system-ui, -apple-system, Segoe UI, sans-serif" font-size="16" font-weight="700">61%</text>
-    <text x="455" y="29" fill="#8fa1b2" font-family="ui-sans-serif, system-ui, -apple-system, Segoe UI, sans-serif" font-size="13">20:45</text>
-    <rect x="20" y="46" width="452" height="10" rx="5" fill="#26323d"/>
-    <rect x="20" y="46" width="276" height="10" rx="5" fill="#4fc978"/>
-  </g>
-
-  <g transform="translate(214 258)">
-    <rect width="492" height="76" rx="16" fill="#17212b"/>
-    <text x="20" y="29" fill="#f5f7fb" font-family="ui-sans-serif, system-ui, -apple-system, Segoe UI, sans-serif" font-size="16" font-weight="700">Claude Code</text>
-    <text x="416" y="29" fill="#e5d85c" font-family="ui-sans-serif, system-ui, -apple-system, Segoe UI, sans-serif" font-size="16" font-weight="700">42%</text>
-    <text x="455" y="29" fill="#8fa1b2" font-family="ui-sans-serif, system-ui, -apple-system, Segoe UI, sans-serif" font-size="13">14:20</text>
-    <rect x="20" y="46" width="452" height="10" rx="5" fill="#26323d"/>
-    <rect x="20" y="46" width="190" height="10" rx="5" fill="#e5d85c"/>
-  </g>
-
-  <g transform="translate(214 350)">
-    <rect width="492" height="76" rx="16" fill="#17212b"/>
-    <text x="20" y="29" fill="#f5f7fb" font-family="ui-sans-serif, system-ui, -apple-system, Segoe UI, sans-serif" font-size="16" font-weight="700">Gemini</text>
-    <text x="378" y="29" fill="#4fc978" font-family="ui-sans-serif, system-ui, -apple-system, Segoe UI, sans-serif" font-size="16" font-weight="700">88%</text>
-    <text x="419" y="29" fill="#8fa1b2" font-family="ui-sans-serif, system-ui, -apple-system, Segoe UI, sans-serif" font-size="13">24h reset</text>
-    <rect x="20" y="46" width="452" height="10" rx="5" fill="#26323d"/>
-    <rect x="20" y="46" width="398" height="10" rx="5" fill="#4fc978"/>
-  </g>
-
-  <text x="460" y="472" text-anchor="middle" fill="#6f7f8f" font-family="ui-sans-serif, system-ui, -apple-system, Segoe UI, sans-serif" font-size="13">Local CLI usage. No external quota APIs.</text>
-
+<svg width="920" height="540" viewBox="0 0 920 540" fill="none" xmlns="http://www.w3.org/2000/svg">
   <defs>
-    <filter id="shadow" x="160" y="48" width="600" height="434" filterUnits="userSpaceOnUse" color-interpolation-filters="sRGB">
+    <radialGradient id="glowA" cx="0" cy="0" r="1" gradientUnits="userSpaceOnUse" gradientTransform="translate(130 80) rotate(37) scale(520 340)">
+      <stop stop-color="#264c57" stop-opacity="0.75"/>
+      <stop offset="1" stop-color="#10151d" stop-opacity="0"/>
+    </radialGradient>
+    <radialGradient id="glowB" cx="0" cy="0" r="1" gradientUnits="userSpaceOnUse" gradientTransform="translate(790 430) rotate(160) scale(520 300)">
+      <stop stop-color="#3b3320" stop-opacity="0.7"/>
+      <stop offset="1" stop-color="#10151d" stop-opacity="0"/>
+    </radialGradient>
+    <filter id="shadow" x="0" y="0" width="920" height="540" filterUnits="userSpaceOnUse" color-interpolation-filters="sRGB">
       <feFlood flood-opacity="0" result="BackgroundImageFix"/>
       <feColorMatrix in="SourceAlpha" type="matrix" values="0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 127 0" result="hardAlpha"/>
       <feOffset dy="10"/>
@@ -70,4 +19,97 @@
       <feBlend mode="normal" in="SourceGraphic" in2="effect1_dropShadow" result="shape"/>
     </filter>
   </defs>
+
+  <!-- Background -->
+  <rect width="920" height="540" fill="#10151d"/>
+  <rect width="920" height="540" fill="url(#glowA)"/>
+  <rect width="920" height="540" fill="url(#glowB)"/>
+
+  <!-- Widget on top with shadow -->
+  <g filter="url(#shadow)">
+    <g transform="translate(140, 30)">
+      <!-- Main Widget Body -->
+      <rect width="640" height="460" rx="16" fill="#0d1117"/>
+      <rect x="0.5" y="0.5" width="639" height="459" rx="15.5" stroke="#30363d"/>
+
+      <!-- Header -->
+      <text x="24" y="44" fill="#8b949e" font-family="Inter, system-ui, sans-serif" font-size="14" font-weight="600" letter-spacing="0.05em">AI USAGE (CONSUMED)</text>
+      
+      <!-- Header Buttons -->
+      <g transform="translate(424, 24)">
+        <rect width="32" height="32" rx="6" fill="#161b22"/>
+        <path d="M16 11V13M16 19V21M21 16H19M13 16H11M19.5 12.5L18.1 13.9M13.9 18.1L12.5 19.5M19.5 19.5L18.1 18.1M13.9 13.9L12.5 12.5" stroke="#8b949e" stroke-width="1.5" stroke-linecap="round"/>
+        
+        <rect x="40" width="32" height="32" rx="6" fill="#161b22"/>
+        <text x="56" y="21" fill="#8b949e" font-family="serif" font-size="16" font-weight="bold" text-anchor="middle">i</text>
+        
+        <rect x="80" width="32" height="32" rx="6" fill="#161b22"/>
+        <path d="M96 11C93.5 11 91.5 13 91.5 15.5C91.5 18 93.5 20 96 20C98.5 20 100.5 18 100.5 15.5M96 11V14M96 11H93" stroke="#8b949e" stroke-width="1.5" stroke-linecap="round" fill="none"/>
+        
+        <rect x="120" width="32" height="32" rx="6" fill="#161b22"/>
+        <path d="M128 16H144" stroke="#8b949e" stroke-width="2" stroke-linecap="round"/>
+        
+        <rect x="160" width="32" height="32" rx="6" fill="#161b22"/>
+        <path d="M170 11L182 21M182 11L170 21" stroke="#8b949e" stroke-width="1.5" stroke-linecap="round"/>
+      </g>
+
+      <!-- Codex Section -->
+      <text x="24" y="90" fill="#ffffff" font-family="Inter, system-ui, sans-serif" font-size="18" font-weight="bold">Codex</text>
+      
+      <g transform="translate(24, 110)">
+        <text y="15" fill="#ffffff" font-family="Inter, system-ui, sans-serif" font-size="14" font-weight="bold">5h</text>
+        <text x="220" y="15" fill="#8b949e" font-family="Inter, system-ui, sans-serif" font-size="14">Reset 15:00</text>
+        <text x="592" y="15" fill="#3fb950" font-family="Inter, system-ui, sans-serif" font-size="14" font-weight="bold" text-anchor="end">16%</text>
+        <rect y="26" width="592" height="8" rx="4" fill="#21262d"/>
+        <rect y="26" width="95" height="8" rx="4" fill="#3fb950"/>
+      </g>
+
+      <g transform="translate(24, 160)">
+        <text y="15" fill="#ffffff" font-family="Inter, system-ui, sans-serif" font-size="14" font-weight="bold">Weekly</text>
+        <text x="220" y="15" fill="#8b949e" font-family="Inter, system-ui, sans-serif" font-size="14">Reset 15:01, May 5</text>
+        <text x="592" y="15" fill="#3fb950" font-family="Inter, system-ui, sans-serif" font-size="14" font-weight="bold" text-anchor="end">20%</text>
+        <rect y="26" width="592" height="8" rx="4" fill="#21262d"/>
+        <rect y="26" width="118" height="8" rx="4" fill="#3fb950"/>
+      </g>
+
+      <!-- Claude Code Section -->
+      <text x="24" y="225" fill="#ffffff" font-family="Inter, system-ui, sans-serif" font-size="18" font-weight="bold">Claude Code</text>
+      
+      <g transform="translate(24, 245)">
+        <text y="15" fill="#ffffff" font-family="Inter, system-ui, sans-serif" font-size="14" font-weight="bold">5h</text>
+        <text x="220" y="15" fill="#8b949e" font-family="Inter, system-ui, sans-serif" font-size="14">Reset 13:40</text>
+        <text x="592" y="15" fill="#3fb950" font-family="Inter, system-ui, sans-serif" font-size="14" font-weight="bold" text-anchor="end">20%</text>
+        <rect y="26" width="592" height="8" rx="4" fill="#21262d"/>
+        <rect y="26" width="118" height="8" rx="4" fill="#3fb950"/>
+      </g>
+
+      <g transform="translate(24, 295)">
+        <text y="15" fill="#ffffff" font-family="Inter, system-ui, sans-serif" font-size="14" font-weight="bold">Weekly</text>
+        <text x="220" y="15" fill="#8b949e" font-family="Inter, system-ui, sans-serif" font-size="14">Reset 00:00, May 6</text>
+        <text x="592" y="15" fill="#e5d85c" font-family="Inter, system-ui, sans-serif" font-size="14" font-weight="bold" text-anchor="end">55%</text>
+        <rect y="26" width="592" height="8" rx="4" fill="#21262d"/>
+        <rect y="26" width="326" height="8" rx="4" fill="#e5d85c"/>
+      </g>
+
+      <!-- Gemini Section -->
+      <text x="24" y="360" fill="#ffffff" font-family="Inter, system-ui, sans-serif" font-size="18" font-weight="bold">Gemini</text>
+      
+      <g transform="translate(24, 380)">
+        <text y="15" fill="#ffffff" font-family="Inter, system-ui, sans-serif" font-size="14" font-weight="bold">24h</text>
+        <text x="220" y="15" fill="#8b949e" font-family="Inter, system-ui, sans-serif" font-size="14">Reset 23:59</text>
+        <text x="592" y="15" fill="#3fb950" font-family="Inter, system-ui, sans-serif" font-size="14" font-weight="bold" text-anchor="end">11%</text>
+        <rect y="26" width="592" height="8" rx="4" fill="#21262d"/>
+        <rect y="26" width="65" height="8" rx="4" fill="#3fb950"/>
+      </g>
+
+      <!-- Footer Inside -->
+      <text x="24" y="440" fill="#8b949e" font-family="Inter, system-ui, sans-serif" font-size="12">Updated 10:21</text>
+      
+      <!-- Resize Handle -->
+      <path d="M615 440 L625 440 L625 430" stroke="#8b949e" stroke-width="1.5" fill="none"/>
+    </g>
+  </g>
+
+  <!-- External Footer Text (More Air) -->
+  <text x="460" y="520" text-anchor="middle" fill="#6f7f8f" font-family="Inter, system-ui, sans-serif" font-size="13">Local CLI usage. No external quota APIs.</text>
 </svg>
