@@ -23,6 +23,7 @@ export function runGeminiUsagePty(options = {}) {
     let settled = false;
     let authWaitExtended = false;
     let readyWaitExtended = false;
+    let trustPromptAccepted = false;
     const eventLog = [];
     let child;
     let timer;
@@ -101,6 +102,16 @@ export function runGeminiUsagePty(options = {}) {
       eventLog.push(`${timestamp()} DATA ${truncate(chunk.replace(/\r/g, "\\r").replace(/\n/g, "\\n"), 220)}`);
       output += chunk;
 
+      if (!trustPromptAccepted && isTrustPrompt(output)) {
+        trustPromptAccepted = true;
+        eventLog.push(`${timestamp()} EVENT accept-trust-prompt`);
+        try {
+          child.write("\r");
+        } catch {
+          // Let the normal timeout path report the failure.
+        }
+      }
+
       if (!authWaitExtended && isWaitingForAuthentication(output)) {
         authWaitExtended = true;
         clearTimeout(timer);
@@ -150,6 +161,12 @@ function isWaitingForAuthentication(output) {
 function showsReadyPrompt(output) {
   const cleaned = cleanTerminalOutput(output);
   return /ready\s*\(.*\)/i.test(cleaned) || /Gemini CLI/i.test(cleaned);
+}
+
+function isTrustPrompt(output) {
+  const cleaned = cleanTerminalOutput(output);
+  return /do\s+you\s+trust\s+the\s+files\s+in\s+this\s+folder/i.test(cleaned)
+    || /trust\s+folder/i.test(cleaned);
 }
 
 function cleanTerminalOutput(value) {

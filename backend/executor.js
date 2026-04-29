@@ -28,7 +28,8 @@ export function execFileWithTimeout(command, args = [], options = {}) {
           timeout: timeoutMs,
           windowsHide: isWindows(),
           maxBuffer: 1024 * 1024,
-          env
+          env,
+          cwd: options.cwd
         },
         (error, stdout, stderr) => {
           resolve({

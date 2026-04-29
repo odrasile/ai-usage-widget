@@ -2,8 +2,8 @@ import { runClaudeUsagePty } from "../claudePty.js";
 import { classifyCliFailure } from "../cliFailure.js";
 import { parseClaudeUsage } from "../parser.js";
 
-export async function getClaudeUsage() {
-  const result = await runClaudeUsagePty({ timeoutMs: 30_000 });
+export async function getClaudeUsage(options = {}) {
+  const result = await runClaudeUsagePty({ timeoutMs: 30_000, cwd: options.cwd });
   const logSuffix = result.debugLogPath ? ` Log: ${result.debugLogPath}` : "";
 
   if (!result.ok) {

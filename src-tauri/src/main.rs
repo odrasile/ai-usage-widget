@@ -161,7 +161,8 @@ fn run_backend_json_command(
         .arg(&backend.entry)
         .arg(command_name)
         .arg(&backend.root)
-        .current_dir(&backend.root);
+        .current_dir(&backend.root)
+        .env("AI_USAGE_WIDGET_CLI_CWD", &backend.cli_cwd);
 
     if let Some(provider) = provider {
         command.arg(provider);
@@ -451,14 +452,17 @@ fn project_root() -> Result<PathBuf, String> {
 struct BackendPaths {
     entry: PathBuf,
     root: PathBuf,
+    cli_cwd: PathBuf,
 }
 
 fn resolve_backend(app: &AppHandle, project_root: &Path) -> Result<BackendPaths, String> {
+    let cli_cwd = resolve_cli_workspace(app)?;
     let dev_entry = project_root.join("backend").join("index.js");
     if dev_entry.exists() {
         return Ok(BackendPaths {
             entry: dev_entry,
             root: project_root.to_path_buf(),
+            cli_cwd,
         });
     }
 
@@ -473,6 +477,7 @@ fn resolve_backend(app: &AppHandle, project_root: &Path) -> Result<BackendPaths,
             return Ok(BackendPaths {
                 entry: candidate_entry,
                 root: candidate_root,
+                cli_cwd,
             });
         }
     }
@@ -488,6 +493,17 @@ fn backend_resource_roots(resource_root: &Path) -> Vec<PathBuf> {
         resource_root.to_path_buf(),
         resource_root.join("_up_"),
     ]
+}
+
+fn resolve_cli_workspace(app: &AppHandle) -> Result<PathBuf, String> {
+    let app_data_dir = app
+        .path()
+        .app_data_dir()
+        .map_err(|error| format!("Unable to resolve app data directory: {error}"))?;
+    let cli_workspace = app_data_dir.join("cli-workspace");
+    fs::create_dir_all(&cli_workspace)
+        .map_err(|error| format!("Unable to create CLI workspace: {error}"))?;
+    Ok(cli_workspace)
 }
 
 fn show_main_window(app: &AppHandle) {

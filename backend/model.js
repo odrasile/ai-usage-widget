@@ -31,7 +31,7 @@ export async function getProviderUsage(provider) {
   }
 
   try {
-    const usage = await adapter();
+    const usage = await adapter({ cwd: getCliCwd() });
     if (usage) {
       return usage;
     }
@@ -62,4 +62,8 @@ export async function getUsageSnapshot(projectRoot = process.cwd()) {
     refresh_interval_sec: getRefreshIntervalSec(projectRoot),
     updated_at: new Date().toISOString()
   };
+}
+
+function getCliCwd() {
+  return process.env.AI_USAGE_WIDGET_CLI_CWD || process.cwd();
 }

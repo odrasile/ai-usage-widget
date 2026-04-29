@@ -3,8 +3,8 @@ import { classifyCliFailure } from "../cliFailure.js";
 import { execFileWithTimeout } from "../executor.js";
 import { parseCodexStatus } from "../parser.js";
 
-export async function getCodexUsage() {
-  const result = await runCodexStatusPty({ timeoutMs: 35_000 });
+export async function getCodexUsage(options = {}) {
+  const result = await runCodexStatusPty({ timeoutMs: 35_000, cwd: options.cwd });
   const logSuffix = result.debugLogPath ? ` Log: ${result.debugLogPath}` : "";
   const parsedFromOutput = parseCodexStatus(result.stdout);
   if (parsedFromOutput) {
@@ -22,7 +22,10 @@ export async function getCodexUsage() {
       };
     }
 
-    const login = await execFileWithTimeout("codex", ["login", "status"], { timeoutMs: 8000 });
+    const login = await execFileWithTimeout("codex", ["login", "status"], {
+      timeoutMs: 8000,
+      cwd: options.cwd
+    });
     const loginOutput = login.ok ? login.stdout.trim() : login.stderr.trim();
     const loginFailure = classifyCliFailure("codex", loginOutput);
     const loginStatus = loginFailure.kind === "update_required"
