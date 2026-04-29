@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { getGeminiEnv } from "./geminiPty.js";
+import { getGeminiEnv } from "./geminiEnv.js";
 
 test("sets gemini keyring bypass when api key is not configured", () => {
   const env = getGeminiEnv({ PATH: "/usr/bin" });

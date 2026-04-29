@@ -2,16 +2,16 @@ import pty from "node-pty";
 import { mkdirSync, writeFileSync } from "node:fs";
 import os from "node:os";
 import path from "node:path";
-import { getPtyShellLaunch, augmentPath, isWindows } from "./platform.js";
+import { getPtyShellLaunch, isWindows } from "./platform.js";
 import { parseGeminiUsage } from "./parser.js";
 import { preparePtyRuntime } from "./ptySupport.js";
 import { closePtyChild } from "./ptyCleanup.js";
+import { getGeminiEnv } from "./geminiEnv.js";
 
 const ANSI_PATTERN = /\x1b\[[0-9;?=>]*[ -/]*[@-~]/g;
 const CONPTY_NOISE_PATTERN = /C:\\.*node-pty\\lib\\conpty_console_list_agent\.js[\s\S]*$/i;
 const OSC_PATTERN = /\x1b\][^\x07\x1b]*(?:\x07|\x1b\\)/g;
 const SINGLE_ESC_PATTERN = /\x1b[@-_]/g;
-const GEMINI_KEYRING_BYPASS_VALUE = "1";
 
 export function runGeminiUsagePty(options = {}) {
   const timeoutMs = options.timeoutMs ?? 30_000;
@@ -229,11 +229,4 @@ function truncate(value, maxLength) {
 
 function timestamp() {
   return new Date().toISOString();
-}
-
-export function getGeminiEnv(baseEnv = process.env) {
-  return augmentPath({
-    ...baseEnv,
-    GEMINI_API_KEY: baseEnv.GEMINI_API_KEY || GEMINI_KEYRING_BYPASS_VALUE
-  });
 }

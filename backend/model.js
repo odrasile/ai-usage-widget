@@ -1,13 +1,10 @@
-import { getClaudeUsage } from "./adapters/claude.js";
-import { getCodexUsage } from "./adapters/codex.js";
-import { getGeminiUsage } from "./adapters/gemini.js";
 import { readConfig } from "./config.js";
 import { detectProviders } from "./detector.js";
 
 const ADAPTERS = {
-  codex: getCodexUsage,
-  claude: getClaudeUsage,
-  gemini: getGeminiUsage
+  codex: () => import("./adapters/codex.js").then((module) => module.getCodexUsage),
+  claude: () => import("./adapters/claude.js").then((module) => module.getClaudeUsage),
+  gemini: () => import("./adapters/gemini.js").then((module) => module.getGeminiUsage)
 };
 
 export async function getDetectedProviders() {
@@ -20,8 +17,8 @@ export function getRefreshIntervalSec(projectRoot = process.cwd()) {
 }
 
 export async function getProviderUsage(provider) {
-  const adapter = ADAPTERS[provider];
-  if (!adapter) {
+  const loadAdapter = ADAPTERS[provider];
+  if (!loadAdapter) {
     return {
       provider,
       available: false,
@@ -31,6 +28,7 @@ export async function getProviderUsage(provider) {
   }
 
   try {
+    const adapter = await loadAdapter();
     const usage = await adapter({ cwd: getCliCwd() });
     if (usage) {
       return usage;

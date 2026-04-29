@@ -1,4 +1,5 @@
-import { getGeminiEnv, runGeminiUsagePty } from "../geminiPty.js";
+import { runGeminiUsagePty } from "../geminiPty.js";
+import { getGeminiEnv } from "../geminiEnv.js";
 import { classifyCliFailure } from "../cliFailure.js";
 import { parseGeminiUsage } from "../parser.js";
 import { execFileWithTimeout } from "../executor.js";

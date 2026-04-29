@@ -24,21 +24,40 @@ export function runCodexStatusPty(options = {}) {
     let retryTimer = null;
     let settleTimer = null;
     const eventLog = [];
-    const launch = getPtyShellLaunch("codex --no-alt-screen");
-    const env = augmentPath({ ...process.env });
-    preparePtyRuntime();
+    let child;
 
-    const child = pty.spawn(
-      launch.file,
-      launch.args,
-      {
-        cols: 120,
-        rows: 34,
-        cwd: options.cwd ?? process.cwd(),
-        env
-      }
-    );
-    eventLog.push(`${timestamp()} SPAWN codex`);
+    try {
+      const launch = getPtyShellLaunch("codex --no-alt-screen");
+      const env = augmentPath({ ...process.env });
+      preparePtyRuntime();
+      child = pty.spawn(
+        launch.file,
+        launch.args,
+        {
+          cols: 120,
+          rows: 34,
+          cwd: options.cwd ?? process.cwd(),
+          env
+        }
+      );
+      eventLog.push(`${timestamp()} SPAWN codex`);
+    } catch (error) {
+      const failureReason = error instanceof Error ? error.message : String(error);
+      resolve({
+        ok: false,
+        stdout: "",
+        stderr: failureReason,
+        code: null,
+        debugLogPath: writeDebugLog({
+          ok: false,
+          rawOutput: output,
+          cleanedOutput: "",
+          failureReason,
+          eventLog
+        })
+      });
+      return;
+    }
 
     const finish = async (ok) => {
       if (settled) {

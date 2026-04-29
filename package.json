@@ -1,6 +1,6 @@
 {
   "name": "ai-usage-widget",
-  "version": "0.1.3",
+  "version": "0.1.4",
   "private": false,
   "author": "Elisardo González Agulla",
   "license": "MIT",
@@ -14,7 +14,7 @@
     "tauri:probe:clear": "node scripts/tauri-preflight.mjs && env VITE_TRANSPARENCY_PROBE=clear node scripts/run-tauri.mjs dev",
     "tauri:probe:panel": "node scripts/tauri-preflight.mjs && env VITE_TRANSPARENCY_PROBE=panel node scripts/run-tauri.mjs dev",
     "tauri:probe:solid": "node scripts/tauri-preflight.mjs && env VITE_TRANSPARENCY_PROBE=solid node scripts/run-tauri.mjs dev",
-    "test": "node --test backend"
+    "test": "node --test backend/*.test.js"
   },
   "dependencies": {
     "@tauri-apps/api": "^2.0.0",
