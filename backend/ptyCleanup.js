@@ -64,9 +64,21 @@ export function closePtyChild(child, eventLog, options = {}) {
 }
 
 function terminatePtyTree(child, eventLog, timestamp, signal) {
+  if (process.platform === "win32") {
+    try {
+      eventLog.push(`${timestamp()} KILL child`);
+      child.kill();
+    } catch (error) {
+      if (!isMissingProcessError(error)) {
+        eventLog.push(`${timestamp()} KILL child-failed: ${formatError(error)}`);
+      }
+    }
+    return;
+  }
+
   const pid = Number(child.pid);
 
-  if (Number.isInteger(pid) && pid > 0 && process.platform !== "win32") {
+  if (Number.isInteger(pid) && pid > 0) {
     try {
       eventLog.push(`${timestamp()} KILL process-group ${pid} ${signal}`);
       process.kill(-pid, signal);

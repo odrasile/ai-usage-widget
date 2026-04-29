@@ -2,7 +2,13 @@ import { execFileWithTimeout } from "./executor.js";
 import { existsSync } from "node:fs";
 import os from "node:os";
 import path from "node:path";
-import { getLookupCommand, augmentPath, isWindows } from "./platform.js";
+import {
+  getLookupCommand,
+  augmentPath,
+  isWindows,
+  isWindowsNpmShimPath,
+  resolveWindowsClaudeExecutable
+} from "./platform.js";
 
 const PROVIDERS = ["codex", "claude", "gemini"];
 const DETECTION_CACHE_TTL_MS = 5 * 60_000;
@@ -47,7 +53,7 @@ async function detectProvidersUncached() {
       timeoutMs: 3000,
       env 
     });
-    if (result.ok && result.stdout.trim().length > 0) {
+    if (result.ok && result.stdout.trim().length > 0 && isUsableProviderLookup(provider, result.stdout, env)) {
       detected.push(provider);
       continue;
     }
@@ -62,6 +68,10 @@ async function detectProvidersUncached() {
 
 function fallbackProviderExists(provider, env) {
   if (isWindows()) {
+    if (provider === "claude") {
+      return Boolean(resolveWindowsClaudeExecutable(env));
+    }
+
     const appData = env.APPDATA || path.join(os.homedir(), "AppData", "Roaming");
     const localAppData = env.LOCALAPPDATA || path.join(os.homedir(), "AppData", "Local");
     const npmDir = path.join(appData, "npm");
@@ -82,4 +92,17 @@ function fallbackProviderExists(provider, env) {
   ]);
 
   return candidates.some((candidate) => existsSync(candidate));
+}
+
+function isUsableProviderLookup(provider, stdout, env) {
+  if (!isWindows() || provider !== "claude") {
+    return true;
+  }
+
+  if (resolveWindowsClaudeExecutable(env)) {
+    return true;
+  }
+
+  const paths = stdout.split(/\r?\n/).map((line) => line.trim()).filter(Boolean);
+  return paths.some((candidate) => !isWindowsNpmShimPath(candidate, provider));
 }

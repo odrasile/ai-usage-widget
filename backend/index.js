@@ -29,11 +29,12 @@ if (!["snapshot", "detect", "provider", "refresh-interval"].includes(command)) {
     }
 
     await writeStream(process.stdout, JSON.stringify(payload));
+    process.exit(0);
   } catch (error) {
     writeEarlyBackendLog(`command ${command}`, error);
     const message = error instanceof Error ? error.message : String(error);
     await writeStream(process.stderr, message);
-    process.exitCode = 1;
+    process.exit(1);
   }
 }
 

@@ -1,6 +1,6 @@
 import os from "node:os";
 import path from "node:path";
-import { readdirSync } from "node:fs";
+import { existsSync, readdirSync } from "node:fs";
 
 export function getLookupCommand() {
   return process.platform === "win32"
@@ -24,6 +24,17 @@ export function getShellLaunch(commandLine) {
 
 export function getPtyShellLaunch(commandLine) {
   return getShellLaunch(commandLine);
+}
+
+export function getProviderPtyLaunch(provider, commandLine = provider, env = process.env) {
+  if (process.platform === "win32" && provider === "claude") {
+    const executable = resolveWindowsClaudeExecutable(env);
+    if (executable) {
+      return getRawLaunch(executable);
+    }
+  }
+
+  return getPtyShellLaunch(commandLine);
 }
 
 export function getRawLaunch(command, args = []) {
@@ -86,4 +97,36 @@ function getNvmNodeBinPaths(home) {
 
 export function isWindows() {
   return process.platform === "win32";
+}
+
+export function resolveWindowsClaudeExecutable(env = process.env) {
+  if (process.platform !== "win32") {
+    return null;
+  }
+
+  const appData = env.APPDATA || path.join(os.homedir(), "AppData", "Roaming");
+  const packageRoot = path.join(appData, "npm", "node_modules", "@anthropic-ai", "claude-code");
+  const archPackage = process.arch === "arm64" ? "claude-code-win32-arm64" : "claude-code-win32-x64";
+  const candidates = [
+    path.join(packageRoot, "bin", "claude.exe"),
+    path.join(packageRoot, "node_modules", "@anthropic-ai", archPackage, "claude.exe")
+  ];
+
+  return candidates.find((candidate) => existsSync(candidate)) ?? null;
+}
+
+export function isWindowsNpmShimPath(value, provider) {
+  if (process.platform !== "win32") {
+    return false;
+  }
+
+  const normalized = String(value).toLowerCase().replaceAll("/", "\\");
+  const appData = (process.env.APPDATA || path.join(os.homedir(), "AppData", "Roaming"))
+    .toLowerCase()
+    .replaceAll("/", "\\");
+  const npmDir = `${appData}\\npm\\`;
+
+  return normalized === `${npmDir}${provider}`
+    || normalized === `${npmDir}${provider}.cmd`
+    || normalized === `${npmDir}${provider}.ps1`;
 }

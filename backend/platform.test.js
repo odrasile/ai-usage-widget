@@ -1,7 +1,14 @@
 import assert from "node:assert/strict";
 import { delimiter } from "node:path";
 import test from "node:test";
-import { augmentPath, getLookupCommand, getShellLaunch } from "./platform.js";
+import {
+  augmentPath,
+  getLookupCommand,
+  getProviderPtyLaunch,
+  getShellLaunch,
+  isWindowsNpmShimPath,
+  resolveWindowsClaudeExecutable
+} from "./platform.js";
 import { preparePtyRuntime } from "./ptySupport.js";
 
 test("uses a platform lookup command supported by the current OS", () => {
@@ -46,4 +53,27 @@ test("launches provider commands through a shell on Unix-like platforms", () => 
 
 test("prepares the local PTY runtime without throwing", () => {
   assert.doesNotThrow(() => preparePtyRuntime());
+});
+
+test("resolves Claude launch without relying on a broken npm shim on Windows", () => {
+  const env = augmentPath({ APPDATA: process.env.APPDATA, PATH: process.env.PATH || "" });
+  const launch = getProviderPtyLaunch("claude", "claude", env);
+
+  if (process.platform !== "win32" || !resolveWindowsClaudeExecutable(env)) {
+    assert.ok(launch.file);
+    return;
+  }
+
+  assert.match(launch.file, /claude\.exe$/i);
+  assert.deepEqual(launch.args, []);
+});
+
+test("identifies Windows npm shim paths", () => {
+  if (process.platform !== "win32") {
+    assert.equal(isWindowsNpmShimPath("/usr/local/bin/claude", "claude"), false);
+    return;
+  }
+
+  const shim = `${process.env.APPDATA}\\npm\\claude.cmd`;
+  assert.equal(isWindowsNpmShimPath(shim, "claude"), true);
 });

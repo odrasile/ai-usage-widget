@@ -2,7 +2,7 @@ import pty from "node-pty";
 import { mkdirSync, writeFileSync } from "node:fs";
 import os from "node:os";
 import path from "node:path";
-import { getPtyShellLaunch, augmentPath } from "./platform.js";
+import { getProviderPtyLaunch, augmentPath } from "./platform.js";
 import { parseClaudeUsage } from "./parser.js";
 import { preparePtyRuntime } from "./ptySupport.js";
 import { closePtyChild } from "./ptyCleanup.js";
@@ -23,8 +23,8 @@ export function runClaudeUsagePty(options = {}) {
     let child;
 
     try {
-      const launch = getPtyShellLaunch("claude");
       const env = augmentPath({ ...process.env });
+      const launch = getProviderPtyLaunch("claude", "claude", env);
       preparePtyRuntime();
       child = pty.spawn(launch.file, launch.args, {
         cols: 120,
