@@ -1,0 +1,108 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>AI Usage Widget - Local Desktop Usage Monitor for Codex, Claude Code, and Gemini CLI</title>
+    <meta
+      name="description"
+      content="A local-first Tauri desktop widget for monitoring Codex, Claude Code, and Gemini CLI usage without external quota APIs or credentials."
+    />
+    <meta name="robots" content="index,follow" />
+    <meta
+      name="keywords"
+      content="AI Usage Widget, Codex usage widget, Claude Code usage widget, Gemini CLI quota, Tauri desktop widget, CodexBar, ClaudeBar, claude-usage-widget"
+    />
+    <meta property="og:title" content="AI Usage Widget" />
+    <meta
+      property="og:description"
+      content="Cross-platform desktop widget for local AI coding CLI usage: Codex, Claude Code, and Gemini CLI."
+    />
+    <meta property="og:type" content="website" />
+    <meta property="og:url" content="https://odrasile.github.io/ai-usage-widget/" />
+    <meta property="og:image" content="https://odrasile.github.io/ai-usage-widget/images/widget-screenshot.svg" />
+    <link rel="canonical" href="https://odrasile.github.io/ai-usage-widget/" />
+    <link rel="stylesheet" href="styles.css" />
+  </head>
+  <body>
+    <main>
+      <section class="hero" aria-labelledby="title">
+        <div class="hero-copy">
+          <p class="eyebrow">Local-first desktop usage monitor</p>
+          <h1 id="title">AI Usage Widget</h1>
+          <p class="lead">
+            A compact always-on-top widget for Codex, Claude Code, and Gemini CLI usage on Windows,
+            Ubuntu Desktop, and macOS.
+          </p>
+          <div class="actions">
+            <a class="button primary" href="https://github.com/odrasile/ai-usage-widget">View on GitHub</a>
+            <a class="button" href="https://github.com/odrasile/ai-usage-widget/releases">Download releases</a>
+          </div>
+        </div>
+        <img class="screenshot" src="images/widget-screenshot.svg" alt="AI Usage Widget screenshot" />
+      </section>
+
+      <section class="band" aria-labelledby="why-title">
+        <h2 id="why-title">Why this project</h2>
+        <div class="grid four">
+          <article>
+            <h3>No APIs</h3>
+            <p>Usage data comes from local provider CLIs, not remote quota services.</p>
+          </article>
+          <article>
+            <h3>No credentials</h3>
+            <p>The widget does not collect tokens, API keys, or provider account secrets.</p>
+          </article>
+          <article>
+            <h3>Local detection</h3>
+            <p>Codex, Claude Code, and Gemini are detected through platform-native CLI lookup.</p>
+          </article>
+          <article>
+            <h3>Cross-platform</h3>
+            <p>Tauri bundles target Windows, Ubuntu Desktop, and macOS.</p>
+          </article>
+        </div>
+      </section>
+
+      <section class="band" aria-labelledby="compare-title">
+        <h2 id="compare-title">Alternatives / comparison</h2>
+        <div class="table" role="table" aria-label="Alternative projects comparison">
+          <div role="row" class="head">
+            <span role="columnheader">Tool</span>
+            <span role="columnheader">Focus</span>
+            <span role="columnheader">AI Usage Widget</span>
+          </div>
+          <div role="row">
+            <span role="cell">CodexBar</span>
+            <span role="cell">Codex status/menu bar</span>
+            <span role="cell">Adds Claude Code and Gemini in one local desktop widget.</span>
+          </div>
+          <div role="row">
+            <span role="cell">ClaudeBar</span>
+            <span role="cell">Claude status/menu bar</span>
+            <span role="cell">Uses provider adapters so the UI is not tied to one CLI.</span>
+          </div>
+          <div role="row">
+            <span role="cell">claude-usage-widget</span>
+            <span role="cell">Claude usage widget</span>
+            <span role="cell">Targets three providers and three desktop platforms.</span>
+          </div>
+          <div role="row">
+            <span role="cell">ccusage</span>
+            <span role="cell">CLI usage file analysis</span>
+            <span role="cell">Shows current status in a floating widget.</span>
+          </div>
+        </div>
+      </section>
+
+      <section class="band" aria-labelledby="start-title">
+        <h2 id="start-title">Get started</h2>
+        <pre><code>npm ci
+npm run tauri:dev</code></pre>
+        <p>
+          Install Node.js 20+, Rust, and at least one supported provider CLI for real data.
+        </p>
+      </section>
+    </main>
+  </body>
+</html>

@@ -1,108 +1,108 @@
 # SPECIFICATIONS.md
 
-## Nombre del producto
+## Product Name
 
 AI Usage Widget
 
 ---
 
-## Objetivo
+## Goal
 
-Aplicacion de escritorio para Windows y Unix desktop, empezando por macOS y Ubuntu, que muestra en tiempo casi real el uso disponible de herramientas AI coding locales a traves de sus CLIs.
+Desktop application for Windows and Unix desktop systems, starting with macOS and Ubuntu, that shows near-real-time remaining usage for local AI coding tools through their CLIs.
 
-La aplicacion debe funcionar como un widget flotante, always-on-top, discreto y facil de ocultar/restaurar.
+The application must behave as a floating, always-on-top widget that is discreet and easy to hide or restore.
 
-Este documento debe servir tambien como contexto de continuidad si el repositorio se mueve a otra maquina, por ejemplo un PC Ubuntu donde se quiera lanzar `codex` y continuar la evolucion del proyecto.
+This document also serves as continuity context if the repository is moved to another machine, for example an Ubuntu PC where `codex` should be launched and development should continue.
 
 ---
 
-## Alcance de plataforma
+## Platform Scope
 
-Plataformas objetivo actuales:
+Current target platforms:
 
 - macOS
 - Windows
 - Ubuntu Desktop
 
-Plataformas objetivo futuras:
+Future target platforms:
 
-- Otras distribuciones Linux compatibles con Tauri/WebKitGTK, si no requieren cambios arquitectonicos importantes.
+- Other Linux distributions compatible with Tauri/WebKitGTK, if they do not require major architectural changes.
 
-Tecnologia:
+Technology:
 
 - Tauri.
-- TypeScript en frontend.
-- Backend local Node.
-- Rust solo para integracion Tauri y ventana.
-- `node-pty` cuando haga falta un TTY real.
+- TypeScript frontend.
+- Local Node backend.
+- Rust only for Tauri and window integration.
+- `node-pty` when a real TTY is required.
 
-### Politica comun de Node.js
+### Common Node.js Policy
 
-Node.js 20 o superior es una dependencia comun para macOS, Windows y Ubuntu.
+Node.js 20 or newer is a common dependency for macOS, Windows, and Ubuntu.
 
-Motivo:
+Reason:
 
-- El proyecto usa un backend local en Node para deteccion de CLIs, ejecucion de procesos auxiliares, PTY y parsing de outputs.
-- Los providers se consultan exclusivamente mediante CLIs locales, no mediante APIs externas.
-- El frontend no debe importar modulos de Node; el uso de Node debe quedar limitado a `backend/` y `scripts/`.
-- Imports como `node:fs`, `node:path`, `node:os` o `node:child_process` son modulos nativos del runtime Node. No son dependencias npm y no deben aparecer en `node_modules`.
+- The project uses a local Node backend for CLI detection, helper process execution, PTY handling, and output parsing.
+- Providers are queried exclusively through local CLIs, not external APIs.
+- The frontend must not import Node modules; Node usage must remain limited to `backend/` and `scripts/`.
+- Imports such as `node:fs`, `node:path`, `node:os`, and `node:child_process` are native Node runtime modules. They are not npm dependencies and must not appear in `node_modules`.
 
-Resolucion del runtime Node:
+Node runtime resolution:
 
-1. Usar `MONITORAI_NODE_BIN` si esta definido.
-2. Usar un runtime `node` empaquetado junto a la app si existe.
-3. Buscar `node` o `nodejs` en `PATH`.
-4. Buscar rutas habituales del sistema operativo.
+1. Use `MONITORAI_NODE_BIN` if it is set.
+2. Use a bundled `node` runtime next to the app if one exists.
+3. Look for `node` or `nodejs` in `PATH`.
+4. Look in common operating-system paths.
 
-Reglas de instalacion:
+Installation rules:
 
-- En desarrollo, el usuario debe instalar Node.js 20+ antes de ejecutar `npm install`, `npm test`, `npm run build` o `npm run tauri dev`.
-- En distribucion, la app puede depender de un Node del sistema o empaquetar un runtime propio; la decision debe ser explicita por plataforma.
-- Si se distribuye sin Node empaquetado, las instrucciones de instalacion deben indicar claramente que Node.js 20+ es requisito de ejecucion.
-- Si Node esta instalado en una ruta no estandar, el usuario debe poder fijarlo con `MONITORAI_NODE_BIN`.
+- During development, the user must install Node.js 20+ before running `npm install`, `npm test`, `npm run build`, or `npm run tauri dev`.
+- For distribution, the app may depend on system Node or bundle its own runtime; the decision must be explicit per platform.
+- If distributed without bundled Node, installation instructions must clearly state that Node.js 20+ is a runtime requirement.
+- If Node is installed in a non-standard path, the user must be able to set it with `MONITORAI_NODE_BIN`.
 
-Politica recomendada:
+Recommended policy:
 
-- Mantener una estrategia comun de resolucion de Node para los tres sistemas operativos.
-- No depender de wrappers de `node_modules/.bin` para ejecutar la app empaquetada.
-- No introducir dependencias externas para reemplazar modulos nativos de Node cuando el runtime ya los proporciona.
+- Keep one common Node resolution strategy for all three supported operating systems.
+- Do not depend on `node_modules/.bin` wrappers to run the packaged app.
+- Do not add external dependencies to replace native Node modules that the runtime already provides.
 
-Notas de compatibilidad:
+Compatibility notes:
 
-- La deteccion de ejecutables debe ser multiplataforma.
-- La ejecucion de CLIs debe abstraer diferencias entre `cmd.exe` y shells Unix.
-- No asumir APIs exclusivas de Windows salvo en ramas condicionadas por plataforma.
+- Executable detection must be cross-platform.
+- CLI execution must abstract differences between `cmd.exe` and Unix shells.
+- Do not assume Windows-only APIs except in platform-gated branches.
 
 ---
 
-## Providers soportados y extensibilidad
+## Supported Providers And Extensibility
 
-Providers soportados hoy:
+Providers supported today:
 
 - `codex`
 - `claude`
 - `gemini`
 
-Providers previstos:
+Planned providers:
 
-- otros CLIs AI coding similares
+- Other similar AI coding CLIs.
 
-La arquitectura debe permitir anadir nuevos providers sin reescribir la UI ni el scheduler. Cada provider debe tener:
+The architecture must allow new providers to be added without rewriting the UI or scheduler. Each provider must have:
 
-- deteccion de instalacion
-- adapter propio
-- parser propio o reglas equivalentes
-- mapeo al modelo de datos unificado
+- installation detection
+- its own adapter
+- its own parser or equivalent parsing rules
+- mapping to the unified data model
 
-El frontend no debe asumir una lista cerrada de providers.
+The frontend must not assume a closed provider list.
 
 ---
 
-## Deteccion de herramientas
+## Tool Detection
 
-El sistema debe detectar si estan instalados los ejecutables configurados como providers.
+The system must detect whether configured provider executables are installed.
 
-Metodo por plataforma:
+Platform method:
 
 ### Windows
 
@@ -128,82 +128,82 @@ which claude
 which gemini
 ```
 
-Notas macOS:
+macOS notes:
 
-- La app puede lanzarse desde Finder/Dock con un `PATH` mas limitado que una terminal.
-- La capa de plataforma debe anadir rutas comunes antes de detectar o lanzar CLIs:
+- The app may be launched from Finder/Dock with a more limited `PATH` than a terminal.
+- The platform layer must add common paths before detecting or launching CLIs:
   - `/opt/homebrew/bin`
   - `/usr/local/bin`
   - `/opt/local/bin`
   - `~/.npm-global/bin`
   - `~/.local/bin`
   - `~/.cargo/bin`
-  - rutas de gestores de Node usados comunmente para instalar CLIs, como nvm, Volta y asdf
-- La resolucion del runtime Node para el backend debe contemplar Homebrew en Apple Silicon (`/opt/homebrew/bin/node`) ademas de rutas Unix tradicionales.
-- `node-pty` en macOS puede instalar su binario auxiliar `spawn-helper` sin permiso de ejecucion en algunos entornos; antes de abrir una PTY se debe asegurar permiso ejecutable para ese helper si existe.
+  - paths from Node managers commonly used to install CLIs, such as nvm, Volta, and asdf
+- Node backend runtime resolution must include Apple Silicon Homebrew (`/opt/homebrew/bin/node`) in addition to traditional Unix paths.
+- On macOS, `node-pty` may install its `spawn-helper` without execute permission in some environments; before opening a PTY, ensure that helper is executable if it exists.
 
-Si una herramienta esta instalada pero falla al obtener uso, debe mostrarse como detectada con estado no disponible, no como ausente.
+If a tool is installed but usage retrieval fails, it must be shown as detected with unavailable usage, not as absent.
 
 ---
 
-## Obtencion de datos
+## Data Retrieval
 
 ### Codex
 
-Codex requiere un TTY real para ejecutar comandos internos.
+Codex requires a real TTY to run internal commands.
 
-Flujo correcto conocido:
+Known correct flow:
 
-1. Lanzar `codex --no-alt-screen` dentro de un pseudo-terminal.
-2. Enviar `/status`.
-3. Capturar salida.
-4. Cerrar la sesion con `/quit` o cerrando la PTY de forma controlada.
-5. Parsear datos.
+1. Launch `codex --no-alt-screen` inside a pseudo-terminal.
+2. Send `/status`.
+3. Capture output.
+4. Close the session with `/quit` or close the PTY in a controlled way.
+5. Parse data.
 
-Ejemplo de salida esperada:
+Expected output example:
 
 ```text
 5h limit: [bars] 61% left (resets 20:45)
 Weekly limit: [bars] 81% left (resets 09:24 on 29 Apr)
 ```
 
-Datos a extraer:
+Data to extract:
 
-- porcentaje restante de limite 5h
-- tiempo de reset 5h
-- porcentaje semanal
-- tiempo de reset semanal
+- remaining percentage for the 5h limit
+- 5h reset time
+- weekly percentage
+- weekly reset time
 
-Normalizacion visual obligatoria:
+Required visual normalization:
 
-- reset primario visible: solo hora local en formato compacto, por ejemplo `14:49`
-- reset semanal visible: hora local + fecha corta localizada, por ejemplo `9:24, 29 abr`
-- no mostrar en UI texto crudo como `on`, `am`, `pm` o zonas tipo `(Europe/Madrid)`
+- primary reset: show only compact local time, for example `14:49`
+- weekly reset: show local time plus localized short date, for example `9:24, 29 Apr`
+- never show raw UI text such as `on`, `am`, `pm`, or timezone suffixes like `(Europe/Madrid)`
 
-No usar:
+Do not use:
 
 - `codex status`
 - `codex exec /status`
 
-Motivo:
+Reason:
 
-- no representan correctamente el flujo real del TUI
-- pueden fallar o no existir segun version
+- They do not correctly represent the real TUI flow.
+- They may fail or not exist depending on the version.
 
 ### Claude Code
 
-Claude tambien requiere una sesion interactiva real para obtener `/usage` de forma fiable.
+Claude also requires a real interactive session to obtain `/usage` reliably.
 
-Flujo correcto conocido:
+Known correct flow:
 
-1. Lanzar `claude` dentro de un pseudo-terminal.
-2. Enviar `/usage`.
-3. Si aparece la pantalla inicial y Claude responde `Status dialog dismissed`, enviar `/usage` una segunda vez.
-4. Capturar salida.
-5. Cerrar la PTY de forma controlada.
-6. Parsear datos.
+1. Launch `claude` inside a pseudo-terminal.
+2. Send `/usage`.
+3. If the initial screen appears and Claude responds `Status dialog dismissed`, send `/usage` a second time.
+4. Capture output.
+5. Close the PTY in a controlled way.
+6. Parse data.
 
-Ejemplo de salida real esperada:
+Expected real output example:
 
 ```text
 Status   Config   Usage   Stats
@@ -217,89 +217,85 @@ Current week (all models)
 Resets Apr 29, 12am (Europe/Madrid)
 ```
 
-Datos a extraer:
+Data to extract:
 
-- porcentaje usado de sesion actual
-- porcentaje usado semanal
-- reset de sesion actual
-- reset semanal
+- current session used percentage
+- weekly used percentage
+- current session reset
+- weekly reset
 
-Calculo requerido:
+Required calculation:
 
 ```text
 percent_left = 100 - percent_used
 ```
 
-- Si en el futuro Gemini aporta reset semanal o reset dinamico, debe normalizarse con la misma regla visual comun:
-  - primario: hora local limpia
-  - semanal: hora local + fecha corta localizada
+Compatibility:
 
-Compatibilidad:
+- Also support older formats based on `remaining/total` if they appear.
+- Tolerate cleaned output where words are joined, for example `Currentsession`, `Currentweek`, `0%used`, and `Resets2:20pm`.
+- Final visible output must follow the same visual normalization as Codex:
+  - primary: `14:49`
+  - weekly: `9:24, 29 Apr`
+- Do not show `am`, `pm`, or `(Europe/Madrid)` in the UI even if they appear in raw output.
 
-- soportar tambien formatos mas antiguos basados en `remaining/total` si aparecen
-- tolerar salida limpia donde las palabras pueden quedar pegadas, por ejemplo `Currentsession`, `Currentweek`, `0%used`, `Resets2:20pm`
-- la salida visible final debe seguir la misma normalizacion visual que Codex:
-  - primario: `14:49`
-  - semanal: `9:24, 29 abr`
-- no mostrar en UI `am`, `pm` ni `(Europe/Madrid)` aunque aparezcan en el output bruto
-
-No asumir que `echo /usage | claude` o piping simple sea suficiente en todas las plataformas.
+Do not assume that `echo /usage | claude` or a simple pipe is enough on every platform.
 
 ### Gemini CLI
 
-Gemini CLI muestra la cuota directamente en su barra de estado al iniciar la sesion.
+Gemini CLI shows quota directly in the TUI status bar when the session starts.
 
-Flujo correcto conocido:
+Known correct flow:
 
-1. Lanzar `gemini -p "hi"` (modo no interactivo con un prompt simple de sondeo) o el binario directamente en un PTY.
-2. Esperar un tiempo prudencial (aprox. 3 segundos) para permitir que el TUI renderice la linea de estado en el terminal.
-3. Capturar la salida completa.
-4. Parsear datos de la tabla de estado o mensajes de error.
+1. Launch `gemini -p "hi"` in non-interactive mode with a small probe prompt, or launch the binary directly in a PTY.
+2. Wait a reasonable amount of time, around 3 seconds, so the TUI can render the terminal status line.
+3. Capture full output.
+4. Parse status table data or error messages.
 
-Para evitar que el sondeo abra dialogos del keyring del sistema, el proceso de Gemini debe lanzarse con `GEMINI_API_KEY=1` cuando el usuario no haya definido ya `GEMINI_API_KEY`. Gemini sigue mostrando la sesion Google y la tabla de quota en ese modo; el valor se usa solo como bypass local del prompt de keyring y no debe persistirse ni aplicarse a otros providers.
+To avoid system keyring dialogs during the probe, launch Gemini with `GEMINI_API_KEY=1` when the user has not already defined `GEMINI_API_KEY`. Gemini still shows the Google session and quota table in this mode. The value is only a local keyring prompt bypass and must not be persisted or applied to other providers.
 
-Ejemplo de salida real esperada:
+Expected real output example:
 
 ```text
 workspace (/directory)             branch             sandbox               /model                               quota
 ~/development/MonitorAI            master             no sandbox            gemini-3-flash-preview            55% used
 ```
 
-Datos a extraer:
+Data to extract:
 
-- porcentaje usado de la cuota diaria (`XX% used`)
-- nivel de suscripcion (`Tier:` o `Plan:`)
+- daily quota used percentage (`XX% used`)
+- subscription level (`Tier:` or `Plan:`)
 
-Calculo requerido:
+Required calculation:
 
 ```text
 percent_left = 100 - percent_used
 ```
 
-Representacion especifica en UI:
+Specific UI representation:
 
-- Para Gemini, la etiqueta del limite principal debe ser `24h` en lugar de `5h`.
-- El tiempo de reinicio debe mostrarse como `23:59` de forma fija, salvo que el CLI proporcione un valor dinámico parseable en el futuro.
+- For Gemini, the primary limit label must be `24h` instead of `5h`.
+- Reset time must be shown as fixed `23:59` unless the CLI provides a parseable dynamic value in the future.
 
-Compatibilidad:
+Compatibility:
 
-- Detectar mensajes de "exhausted capacity" o errores `429` / `RESOURCE_EXHAUSTED` para reportar 0% de disponibilidad de forma inmediata.
-- Detectar tambien el caso en que la columna `quota` del TUI muestre `limit reached`; debe interpretarse igualmente como 0% disponible.
+- Detect `exhausted capacity`, `429`, or `RESOURCE_EXHAUSTED` messages and report 0% availability immediately.
+- Also detect the TUI `quota` column value `limit reached`; interpret it as 0% available.
 
-### Futuros CLIs
+### Future CLIs
 
-Para otros providers, el proyecto debe seguir esta regla:
+For other providers, follow this rule:
 
-1. Detectar si el CLI esta instalado.
-2. Determinar si la consulta de uso requiere PTY real o puede ser non-interactive.
-3. Documentar el flujo correcto en este fichero.
-4. Implementar adapter y parser sin romper providers existentes.
+1. Detect whether the CLI is installed.
+2. Determine whether usage querying requires a real PTY or can be non-interactive.
+3. Document the correct flow in this file.
+4. Implement the adapter and parser without breaking existing providers.
 
 ---
 
-## Modelo de datos unificado
+## Unified Data Model
 
-Provider con datos:
+Provider with data:
 
 ```json
 {
@@ -318,7 +314,7 @@ Provider con datos:
 }
 ```
 
-Provider detectado sin datos disponibles:
+Provider detected without available data:
 
 ```json
 {
@@ -329,7 +325,7 @@ Provider detectado sin datos disponibles:
 }
 ```
 
-Snapshot completo:
+Full snapshot:
 
 ```json
 {
@@ -339,224 +335,224 @@ Snapshot completo:
 }
 ```
 
-Reglas:
+Rules:
 
-- `provider` no debe estar restringido a una union cerrada de dos nombres; deben poder entrar nuevos CLIs.
-- `primary` representa el limite principal del provider.
-- `weekly` es opcional.
-- `status` es obligatorio cuando `available` es `false`.
-- el valor interno de `reset` puede venir en formatos distintos segun provider, pero la UI debe aplicar una normalizacion comun antes de mostrarlo
+- `provider` must not be restricted to a closed union of two names; new CLIs must be able to enter the model.
+- `primary` represents the provider's main limit.
+- `weekly` is optional.
+- `status` is required when `available` is `false`.
+- Internal `reset` values may come in different provider formats, but the UI must apply common normalization before showing them.
 
-Contrato visual comun para resets:
+Common visual reset contract:
 
-- limite principal (`5h`, `24h` o equivalente): mostrar solo hora local, por ejemplo `14:49`
-- limite semanal: mostrar hora local + fecha corta localizada, por ejemplo `9:24, 29 abr`
-- nunca mostrar en UI sufijos crudos como `on`, `am`, `pm`, zonas horarias entre parentesis, ni placeholders como `N/A`, salvo error real sin dato
+- primary limit (`5h`, `24h`, or equivalent): show only local time, for example `14:49`
+- weekly limit: show local time plus localized short date, for example `9:24, 29 Apr`
+- never show raw suffixes such as `on`, `am`, `pm`, parenthesized timezones, or placeholders such as `N/A` unless there is a real error without data
 
 ---
 
 ## UI
 
-Widget flotante con:
+Floating widget with:
 
-- always-on-top
-- sin bordes nativos
-- ancho fijo razonable
-- altura adaptativa al contenido y al numero de providers detectados
-- fondo semi-transparente
-- cabecera arrastrable
-- boton de informacion
-- boton de configuracion (tuerca ⚙) para abrir el panel de ajustes
-- boton de refresco manual para forzar actualizacion de todas las CLIs
-- boton cerrar
-- boton ocultar a bandeja
-- icono de bandeja con opciones Show/Quit cuando la plataforma lo soporte bien
-- debe recordar entre ejecuciones su ultima posicion, su ultimo tamano y su nivel de zoom en todos los sistemas operativos soportados, siempre que esos valores sigan siendo validos
-- si la posicion recordada queda fuera de pantalla o el tamano recordado es menor que el minimo requerido por el contenido actual, la app debe aplicar fallback seguro, por ejemplo centrar la ventana o crecer hasta el minimo necesario
+- always-on-top behavior
+- no native borders
+- reasonable fixed width
+- height adaptive to content and detected provider count
+- semi-transparent background
+- draggable header
+- information button
+- settings button to open the settings panel
+- manual refresh button for all CLIs
+- close button
+- hide-to-tray button
+- tray icon with Show/Quit options when the platform supports it well
+- remembered position, size, and zoom level across launches on all supported platforms, provided those values remain valid
+- safe fallback if the remembered position is off-screen or remembered size is smaller than current content requires, such as centering the window or growing it to the required minimum
 
-### Configuracion y Ajustes
+### Configuration And Settings
 
-El widget incluye un panel de configuracion accesible mediante un icono de tuerca (⚙) en la cabecera. Este panel ha sido diseñado para ser robusto y legible en todos los entornos de escritorio soportados:
+The widget includes a settings panel accessible from the header. It is designed to be robust and readable across supported desktop environments:
 
-- **Intervalo de Refresco**: Permite establecer la frecuencia de actualización automática entre 1 y 60 minutos (por defecto 2 minutos).
-- **Idioma**: Permite cambiar la interfaz entre Español e Inglés. El cambio se aplica de forma inmediata en toda la aplicación.
-- **Modo de Visualización**: Define el enfoque narrativo y visual de los datos:
-  - **Uso Consumido**: Enfoque tradicional. Las barras crecen de izquierda a derecha (0% a 100%). Las etiquetas cambian a "Uso 5h" / "Uso Semanal". El color escala de Verde (bajo uso) a Rojo (uso crítico).
-  - **Recursos Libres**: Enfoque de capacidad. Las barras representan el espacio disponible; comienzan llenas y se vacían hacia la izquierda a medida que se consume el recurso. Las etiquetas cambian a "Libre 5h" / "Libre Semanal". El color escala de Verde (mucha capacidad libre) a Rojo (poca capacidad libre).
-- **Visibilidad por Provider**: El panel muestra una casilla por cada CLI detectado para activar o desactivar su renderizado en el widget.
-  - La visibilidad se guarda localmente junto al resto de ajustes.
-  - Ocultar un provider desactiva su refresh automático para evitar consultas innecesarias de cuota; se mantiene su último dato conocido si existía.
-  - Todo provider detectado nuevo se considera visible por defecto.
-  - Si todos los providers quedan ocultos, la UI muestra un estado vacio especifico de "no providers visible" en lugar de simular que no hay CLIs detectadas.
-- **Diseño y Visibilidad**:
-  - **Dimensiones**: Ancho ampliado a 280px para garantizar que las etiquetas de texto largo sean plenamente legibles.
-  - **Posicionamiento Inteligente**: El panel utiliza un desplazamiento negativo calculado respecto a su botón de activación. Esto asegura que, independientemente de la posición del botón en la cabecera, el diálogo se mantenga siempre dentro de los límites visibles del widget, evitando desbordamientos por el lateral izquierdo.
-  - **Estilo Dark Mode**: Implementación de un tema oscuro forzado para evitar inconsistencias con los temas nativos del sistema (especialmente en Linux/WebKitGTK). Utiliza fondos sólidos oscuros (`rgb(16, 20, 28)`), textos de alto contraste (`#f5f7fb`) y selectores con apariencia personalizada y flecha SVG integrada.
-- **Persistencia**: Los ajustes se guardan localmente y persisten entre sesiones. Al abrir el panel, se muestran los valores actuales cargados.
+- **Refresh Interval**: Sets automatic refresh frequency between 1 and 60 minutes, with a 2-minute default.
+- **Language**: Switches the interface between Spanish and English. The change applies immediately across the application.
+- **Display Mode**: Defines the narrative and visual interpretation of data:
+  - **Used Resources**: Traditional view. Bars grow left to right from 0% to 100%. Labels become `5h usage` / `Weekly usage`. Color scales from green for low usage to red for critical usage.
+  - **Free Resources**: Capacity view. Bars represent available capacity; they start full and empty toward the left as the resource is consumed. Labels become `5h free` / `Weekly free`. Color scales from green for high free capacity to red for low free capacity.
+- **Provider Visibility**: The panel shows one checkbox per detected CLI to enable or disable rendering in the widget.
+  - Visibility is stored locally with the rest of the settings.
+  - Hiding a provider disables its automatic refresh to avoid unnecessary quota queries; its last known data remains stored if it existed.
+  - Every newly detected provider is visible by default.
+  - If all providers are hidden, the UI shows a specific `no providers visible` empty state instead of pretending that no CLIs were detected.
+- **Layout And Visibility**:
+  - **Dimensions**: Width is expanded to 280px so longer labels remain fully readable.
+  - **Smart Positioning**: The panel uses a calculated negative offset relative to the triggering button. This keeps the dialog inside the visible widget bounds regardless of header button position.
+  - **Dark Mode Styling**: The app forces a dark theme to avoid inconsistencies with native system themes, especially on Linux/WebKitGTK. It uses solid dark backgrounds (`rgb(16, 20, 28)`), high-contrast text (`#f5f7fb`), and custom select styling with an embedded SVG arrow.
+- **Persistence**: Settings are stored locally and persist between sessions. Opening the panel shows the current loaded values.
 
-### Escalado y Zoom
+### Scaling And Zoom
 
-El widget permite ajustar su escala visual para adaptarse a diferentes resoluciones de pantalla y preferencias del usuario, manteniendo la integridad del layout y la facilidad de lectura.
+The widget allows visual scale adjustment for different screen resolutions and user preferences while preserving layout integrity and readability.
 
-- **Controles**:
-  - **Teclado**: `Ctrl` + `+` (Windows/Linux) o `Cmd` + `+` (macOS) para aumentar; `Ctrl/Cmd` + `-` para disminuir; `Ctrl/Cmd` + `0` para restablecer al 100%.
-  - **Raton**: `Ctrl/Cmd` + rueda del raton hacia arriba (aumentar) / abajo (disminuir).
-- **Rango**: Desde 50% hasta 200%, en pasos del 10% (0.1).
-- **Persistencia**: El nivel de zoom se guarda junto con el estado de la ventana (posicion y tamano) y se restaura automaticamente al iniciar la aplicacion.
+- **Controls**:
+  - **Keyboard**: `Ctrl` + `+` on Windows/Linux or `Cmd` + `+` on macOS to increase; `Ctrl/Cmd` + `-` to decrease; `Ctrl/Cmd` + `0` to reset to 100%.
+  - **Mouse**: `Ctrl/Cmd` + mouse wheel up/down to increase/decrease.
+- **Range**: 50% to 200%, in 10% steps.
+- **Persistence**: Zoom level is stored with window state and restored on app startup.
 
-#### Comportamiento del Layout y Ventana
+#### Layout And Window Behavior
 
-1.  **Mantenimiento de Proporciones (Aspect Ratio)**:
-    - Al cambiar el zoom, la ventana de la aplicacion debe redimensionarse proporcionalmente al factor de escala aplicado.
-    - Si el usuario ha redimensionado manualmente la ventana para que sea mas ancha o alta, el zoom debe respetar esa proporcion relativa en lugar de saltar a un tamano minimo.
-2.  **Sincronizacion Dinamica**:
-    - La ventana de Tauri debe ajustarse de forma síncrona con el cambio visual del contenido.
-    - Se utiliza una medicion "limpia" (poniendo temporalmente el contenedor en altura automatica) para asegurar que se captura el tamano real del contenido incluyendo margenes, gaps y paddings.
-3.  **Integridad Visual (No Solapamiento)**:
-    - El footer (`Actualizado...`) tiene prioridad visual y no debe quedar nunca oculto por los paneles de los providers.
-    - Se asegura mediante CSS (`flex-shrink: 0`) y una gestion correcta de los limites de la ventana.
-4.  **Limites de Seguridad Escalados**:
-    - Los limites de tamano de la ventana (`clamping`) se multiplican por el factor de zoom actual.
-    - **Minimos**: Reducidos para permitir widgets compactos en escalas bajas (ej. 320px de ancho).
-    - **Maximos**: Ampliados significativamente (ej. hasta 1600px de altura) para evitar que el contenido se corte o se solape al usar niveles altos de zoom (200%) con multiples providers.
-    - La ventana nunca sera mas pequeña que lo que el contenido escalado requiere para ser visible.
+1. **Aspect Ratio Preservation**:
+   - When zoom changes, the app window must resize proportionally to the applied scale factor.
+   - If the user manually resized the window to be wider or taller, zoom must respect that relative proportion instead of jumping to a minimum size.
+2. **Dynamic Synchronization**:
+   - The Tauri window must adjust synchronously with visual content changes.
+   - A clean measurement is used by temporarily putting the container into automatic height so real content size is captured, including margins, gaps, and padding.
+3. **Visual Integrity**:
+   - The footer (`Updated...`) has visual priority and must never be hidden by provider panels.
+   - This is enforced with CSS (`flex-shrink: 0`) and correct window boundary management.
+4. **Scaled Safety Limits**:
+   - Window size clamps are multiplied by the current zoom factor.
+   - **Minimums**: Reduced to allow compact widgets at low scales, for example 320px wide.
+   - **Maximums**: Significantly expanded, for example up to 1600px high, so content is not clipped or overlapped at 200% zoom with multiple providers.
+   - The window must never be smaller than what scaled content requires to remain visible.
 
-Comportamiento durante refresh manual o automatico:
+Manual or automatic refresh behavior:
 
-- Debe aplicarse de forma consistente en todos los sistemas operativos soportados.
-- Mientras una actualizacion esta en curso, la UI no debe parecer congelada ni silenciosa.
-- El ultimo snapshot valido debe permanecer visible mientras se consulta de nuevo a las CLIs.
-- La actualizacion debe resolverse por provider y no esperar a que todas las CLIs terminen para repintar la UI.
-- Cada provider debe actualizar su componente visual en cuanto llegue su nuevo resultado, aunque otros providers sigan pendientes.
-- El boton de refresco debe reflejar estado activo de forma clara, por ejemplo con spinner, estado deshabilitado temporalmente o ambos.
-- La cabecera o el footer deben mostrar un texto transitorio como `Actualizando...` / `Refreshing...`.
-- El provider que siga pendiente puede atenuarse ligeramente o mostrarse en gris, pero no debe desaparecer ni bloquear la visualizacion de los providers ya actualizados.
-- Si el refresh falla, debe mantenerse el ultimo estado visible y marcarse como dato desactualizado o en estado de alerta, en lugar de ocultar toda la informacion util.
+- Behavior must be consistent across all supported operating systems.
+- While a refresh is running, the UI must not appear frozen or silent.
+- The last valid snapshot must remain visible while CLIs are queried again.
+- Refresh must resolve per provider and must not wait for the slowest provider before repainting the others.
+- Each provider component must update as soon as its new result arrives, even if other providers are still pending.
+- The refresh button must clearly reflect active state, for example with a spinner, temporary disabled state, or both.
+- The header or footer should show transient text such as `Updating...` / `Refreshing...`.
+- A pending provider may be slightly dimmed or gray, but it must not disappear or block already updated providers.
+- If refresh fails, keep the last visible state and mark it as stale or alerting instead of hiding useful information.
 
-Contenido por provider:
+Provider content:
 
-- nombre
-- barra de limite 5h o equivalente principal
-- barra semanal si existe
-- porcentaje restante
-- tiempo de reset
-
----
-
-## Transparencia y Composicion en Linux
-
-### Explicacion del problema
-
-- En Linux, la ventana del widget no depende solo del frontend. Tauri usa el webview nativo del sistema y en esta plataforma eso significa WebKitGTK.
-- El comportamiento visual no es equivalente a Windows ni a macOS. Transparencia, blur y otros efectos dependen del stack completo: Tauri, WebKitGTK, GTK y el entorno grafico.
-- En X11, la transparencia real requiere compositor activo. Sin compositor, una ventana con alpha puede renderizarse con fondo negro.
-- En Wayland la situacion puede ser mejor, pero no debe asumirse como equivalente a Windows ni como garantia de soporte completo.
-- Incluso con compositor activo, la transparencia en Tauri + WebKitGTK puede seguir siendo inconsistente o limitada segun version, distribucion y window manager.
-
-### Diagnostico tecnico adoptado en el proyecto
-
-- Se ha verificado el comportamiento en Linux/X11 con Tauri y WebKitGTK usando ventanas de prueba minimales.
-- Se ha comprobado que el problema de fondo negro puede persistir aunque la UI HTML sea correcta y aunque el codigo solicite transparencia de ventana.
-- Cuando esto ocurre, el problema debe tratarse como limitacion del stack nativo de composicion y no como fallo del layout del widget.
-- El proyecto no debe asumir que una ventana marcada como `transparent: true` vaya a mostrarse realmente transparente en Linux.
-
-### Decision de arquitectura
-
-- No perseguir transparencia real en Linux/X11 como requisito funcional del producto.
-- No introducir workarounds fragiles dependientes de compositor, desktop environment o version concreta de WebKitGTK.
-- No bloquear trabajo de producto en iteraciones visuales cuyo exito dependa del entorno grafico del usuario.
-- Priorizar estabilidad visual, legibilidad y consistencia del widget sobre efectos avanzados.
-
-### Estrategia de fallback
-
-- El fallback oficial en Linux debe ser un panel oscuro elegante, visualmente estable y sin depender de transparencia real.
-- El widget debe seguir usando borde redondeado, sombra y contraste suficiente para mantener aspecto de overlay, aunque el fondo no sea realmente transparente.
-- El modo visual debe funcionar correctamente tanto con compositor como sin compositor.
-- La UI debe seguir siendo legible y usable aunque la transparencia nativa no este disponible.
-
-### Criterios de aceptacion
-
-- La app funciona correctamente en Linux aunque no haya transparencia real.
-- No hay glitches visuales causados por depender de compositor para el funcionamiento normal.
-- La UI no depende de transparencia real para mostrar providers, barras, estados ni controles.
-- El modo visual aplicado debe poder registrarse o exponerse en logs de diagnostico cuando sea necesario.
-
-### Consideraciones futuras
-
-- Evaluar mas adelante el comportamiento en Wayland como via preferente para Linux si el soporte real resulta mas consistente.
-- Revisar esta decision cuando WebKitGTK o Tauri mejoren soporte de transparencia de forma verificable y reproducible.
-- Si en el futuro se considera necesario soporte visual avanzado en Linux, evaluar alternativas de stack o estrategia de ventana, pero no implementarlas hasta tener evidencia tecnica suficiente.
-
-Estados:
-
-- inicializando/detectando CLIs
-- refrescando
-- sin providers
-- provider detectado pero sin uso disponible
-- error tolerable de provider
-
-Regla de layout:
-
-- la altura de la ventana del widget debe ajustarse al contenido real, no solo la altura del panel interno
-- si aumentan los providers detectados, el widget debe crecer
-- si disminuyen, debe encogerse hasta un minimo practico
+- name
+- 5h or equivalent primary limit bar
+- weekly bar if available
+- remaining percentage
+- reset time
 
 ---
 
-## Localizacion
+## Linux Transparency And Composition
 
-La UI debe soportar:
+### Problem Explanation
 
-- Espanol
-- Ingles
+- On Linux, the widget window does not depend only on the frontend. Tauri uses the native system webview, which means WebKitGTK on this platform.
+- Visual behavior is not equivalent to Windows or macOS. Transparency, blur, and related effects depend on the whole stack: Tauri, WebKitGTK, GTK, and the desktop environment.
+- On X11, real transparency requires an active compositor. Without a compositor, a window with alpha may render with a black background.
+- On Wayland the situation may be better, but it must not be assumed equivalent to Windows or treated as guaranteed full support.
+- Even with an active compositor, transparency in Tauri + WebKitGTK may remain inconsistent or limited depending on version, distribution, and window manager.
 
-Deteccion:
+### Adopted Technical Diagnosis
 
-- usar idioma del sistema/navegador disponible en frontend
-- si el idioma empieza por `es`, usar espanol
-- en cualquier otro caso, usar ingles
+- Behavior was verified on Linux/X11 with Tauri and WebKitGTK using minimal test windows.
+- A black background can persist even when the HTML UI is correct and the code requests a transparent window.
+- When this happens, it must be treated as a native composition stack limitation, not as a widget layout bug.
+- The project must not assume that a window marked as `transparent: true` will actually render transparent on Linux.
+
+### Architecture Decision
+
+- Do not pursue real transparency on Linux/X11 as a functional product requirement.
+- Do not add fragile workarounds tied to a compositor, desktop environment, or specific WebKitGTK version.
+- Do not block product work on visual iterations whose success depends on the user's graphics environment.
+- Prioritize visual stability, readability, and widget consistency over advanced effects.
+
+### Fallback Strategy
+
+- The official Linux fallback is a polished dark panel that is visually stable and does not depend on real transparency.
+- The widget should keep rounded corners, shadow, and sufficient contrast to maintain an overlay appearance even when the background is not truly transparent.
+- The visual mode must work correctly with or without a compositor.
+- The UI must remain readable and usable when native transparency is unavailable.
+
+### Acceptance Criteria
+
+- The app works correctly on Linux even without real transparency.
+- There are no visual glitches caused by depending on a compositor for normal operation.
+- The UI does not depend on real transparency to show providers, bars, states, or controls.
+- The applied visual mode can be logged or exposed in diagnostics when needed.
+
+### Future Considerations
+
+- Evaluate Wayland behavior later as the preferred Linux path if real support proves more consistent.
+- Revisit this decision when WebKitGTK or Tauri transparency support improves in a verifiable and reproducible way.
+- If advanced visual support on Linux becomes necessary, evaluate alternative stacks or window strategies, but do not implement them without enough technical evidence.
+
+States:
+
+- initializing/detecting CLIs
+- refreshing
+- no providers
+- provider detected but usage unavailable
+- tolerable provider error
+
+Layout rule:
+
+- widget window height must adapt to real content, not only inner panel height
+- if detected providers increase, the widget must grow
+- if providers decrease, it must shrink to a practical minimum
 
 ---
 
-## Colores de uso
+## Localization
 
-Las barras deben comunicar severidad por porcentaje restante mediante una interpolación suave dividida en tres tramos de "salud":
+The UI must support:
 
-- **Tramo de Seguridad (0% a 45% de uso)**: Transición de **Verde** (`#4fc978`) a **Amarillo** (`#e5d85c`).
-- **Tramo de Aviso (45% a 75% de uso)**: Transición de **Amarillo** (`#e5d85c`) a **Naranja** (`#f2a33a`).
-- **Tramo Crítico (75% a 100% de uso)**: Transición de **Naranja** (`#f2a33a`) a **Rojo** (`#df3f3f`).
+- Spanish
+- English
 
-El texto del porcentaje debe usar el mismo color calculado para su barra.
+Detection:
 
-### Tramo Delta (Consumo en Sesión)
-
-Para proporcionar feedback sobre el consumo inmediato, cada barra puede mostrar un "tramo delta" con un pulso animado:
-
-- **Función**: Representa exclusivamente el incremento de consumo ocurrido **durante la sesión actual** de la aplicación.
-- **Línea de Base de Sesión (Session Baseline)**: Al arrancar la aplicación, el primer valor válido obtenido (ya sea de la caché o de la primera consulta real) se registra internamente como el punto de referencia. En este estado inicial **no se muestra ningún delta**.
-- **Activación**: El tramo delta solo aparece cuando una lectura posterior detecta un incremento en el uso respecto a la línea de base de la sesión. 
-- **Modo de Visualización**:
-  - En **Uso Consumido**: El delta se añade a la derecha de la barra sólida, indicando el crecimiento del gasto.
-  - En **Recursos Libres**: El delta ocupa el espacio que acaba de ser "vaciado" a la derecha de la reserva restante.
-- **Actualización de Base**: Si se detecta un reinicio de cuota (el uso baja drásticamente respecto a la base), el sistema actualiza automáticamente la línea de base al nuevo valor mínimo para empezar a contar el consumo de la nueva cuota desde cero.
+- use the system/browser language available in the frontend
+- if the language starts with `es`, use Spanish
+- otherwise use English
 
 ---
 
-## Actualizacion
+## Usage Colors
 
-- refresco cada 30 a 120 segundos
-- valor por defecto: 120 segundos
-- actualizacion incremental por provider, sin esperar al provider mas lento para repintar los demas
-- tolerancia a errores
-- no bloquear UI
-- durante refresco, mantener datos anteriores visibles y mostrar indicador discreto
-- permitir refresco manual inmediato desde la cabecera del widget
+Bars must communicate severity by remaining percentage through a smooth interpolation split into three health ranges:
+
+- **Safe Range (0% to 45% usage)**: transition from **Green** (`#4fc978`) to **Yellow** (`#e5d85c`).
+- **Warning Range (45% to 75% usage)**: transition from **Yellow** (`#e5d85c`) to **Orange** (`#f2a33a`).
+- **Critical Range (75% to 100% usage)**: transition from **Orange** (`#f2a33a`) to **Red** (`#df3f3f`).
+
+Percentage text must use the same computed color as its bar.
+
+### Delta Segment (Session Consumption)
+
+To provide feedback on immediate consumption, each bar may show a pulsing delta segment:
+
+- **Function**: Represents only the usage increase that happened during the current application session.
+- **Session Baseline**: On startup, the first valid value obtained, either from cache or from the first real query, is stored internally as the reference point. In this initial state, no delta is shown.
+- **Activation**: The delta segment appears only when a later reading detects a usage increase compared with the session baseline.
+- **Display Mode**:
+  - In **Used Resources**: the delta is added to the right of the solid bar, showing spending growth.
+  - In **Free Resources**: the delta occupies the space that has just been emptied to the right of the remaining reserve.
+- **Baseline Update**: If a quota reset is detected because usage drops sharply compared with the baseline, the system automatically updates the baseline to the new minimum so consumption for the new quota starts from zero.
 
 ---
 
-## Configuracion
+## Refresh
 
-Archivo local opcional en la raiz:
+- refresh every 30 to 120 seconds
+- default value: 120 seconds
+- incremental update by provider, without waiting for the slowest provider before repainting the rest
+- fault tolerance
+- no UI blocking
+- keep previous data visible during refresh and show a subtle indicator
+- allow immediate manual refresh from the widget header
+
+---
+
+## Configuration
+
+Optional local file in the repository root:
 
 ```json
 {
@@ -564,48 +560,48 @@ Archivo local opcional en la raiz:
 }
 ```
 
-El valor debe limitarse entre 30 y 120 segundos.
+The value must be clamped between 30 and 120 seconds.
 
 ---
 
-## Arquitectura
+## Architecture
 
-Modulos esperados:
+Expected modules:
 
 - ProviderDetector
 - CLIExecutor
 - Platform abstraction
 - CodexAdapter
 - ClaudeAdapter
-- futuros adapters por provider
+- future provider adapters
 - Parser
-- Modelo de datos unificado
+- Unified data model
 - UI Renderer
 - Scheduler
 - i18n
 - Tray/window integration
 
-Regla importante:
+Important rule:
 
-- la logica de plataforma debe concentrarse en una capa pequena y explicita
-- la mayor parte de adapters y parsers debe permanecer agnostica respecto a Windows o Unix
+- platform logic must be concentrated in a small and explicit layer
+- most adapters and parsers must remain agnostic to Windows or Unix
 
 ---
 
-## Seguridad
+## Security
 
-- ejecutar solo comandos whitelist de lookup y providers soportados
-- no ejecutar input del usuario
-- usar argumentos fijos
-- usar timeouts
-- no usar red para obtener datos
-- ocultar consolas auxiliares en Windows
-- cerrar procesos auxiliares al completar lectura
-- en Unix, no asumir privilegios elevados ni dependencias fuera de Tauri/Node/CLI local
+- execute only whitelisted lookup commands and supported providers
+- do not execute user input
+- use fixed arguments
+- use timeouts
+- do not use the network to obtain data
+- hide helper consoles on Windows
+- close helper processes after reading
+- on Unix, do not assume elevated privileges or dependencies outside Tauri/Node/local CLI tools
 
-Whitelist minima actual:
+Current minimum whitelist:
 
-- `where.exe` o `which`
+- `where.exe` or `which`
 - `codex`
 - `claude`
 - `gemini`
@@ -614,45 +610,45 @@ Whitelist minima actual:
 
 ## Testing
 
-Casos minimos:
+Minimum cases:
 
-1. Codex presente con `/status` parseable.
-2. Claude presente con `/usage` parseable.
-3. Gemini presente con tabla de cuota (`XX% used`) parseable.
-4. Gemini con mensaje de capacidad agotada ("exhausted").
-5. Claude con primer `/usage` que solo cierra dialogo y segundo `/usage` que muestra uso.
-6. Multiples providers presentes simultaneamente.
-7. Ninguno presente.
-8. CLI detectada pero uso no disponible.
-9. Fallo de CLI (exit codes, timeouts).
-10. Output inesperado o ruidoso (ej. mensajes de SSH agent al inicio).
-11. Unificacion de formatos de hora (Hora, Fecha) en todas las herramientas.
-12. UI con etiquetas personalizadas para Gemini (24h, 23:59).
-13. Localizacion espanol/ingles.
-14. Altura adaptativa del widget segun numero de providers.
-15. Compatibilidad de deteccion Windows/Unix.
+1. Codex present with parseable `/status`.
+2. Claude present with parseable `/usage`.
+3. Gemini present with parseable quota table (`XX% used`).
+4. Gemini with an exhausted capacity message.
+5. Claude where the first `/usage` only dismisses a dialog and the second `/usage` shows usage.
+6. Multiple providers present at the same time.
+7. No providers present.
+8. CLI detected but usage unavailable.
+9. CLI failure through exit codes or timeouts.
+10. Unexpected or noisy output, for example SSH agent messages at startup.
+11. Unified time format across all tools.
+12. UI with Gemini-specific labels (`24h`, `23:59`).
+13. Spanish/English localization.
+14. Adaptive widget height based on provider count.
+15. Windows/Unix detection compatibility.
 
 ---
 
 ## Build
 
-Debe generar build para la plataforma actual.
+The project must generate a build for the current platform.
 
 ### Windows
 
 - `.exe`
-- bundle instalable cuando Tauri lo permita (`.msi`, NSIS, etc.)
+- installable bundle when Tauri supports it (`.msi`, NSIS, etc.)
 
 ### Ubuntu
 
-- `.deb` y/o AppImage cuando el entorno Tauri lo permita
+- `.deb` and/or AppImage when the Tauri environment supports it
 
 ### macOS
 
 - `.app`
-- `.dmg` cuando Tauri lo permita en el entorno actual
+- `.dmg` when the current environment supports it
 
-Comandos base:
+Base commands:
 
 ```bash
 npm install
@@ -662,7 +658,7 @@ npm run tauri dev
 npm run tauri build
 ```
 
-Dependencias Ubuntu esperadas para compilar Tauri:
+Expected Ubuntu dependencies for compiling Tauri:
 
 ```bash
 sudo apt update
@@ -680,14 +676,14 @@ sudo apt install -y \
 
 ---
 
-## Contexto operativo para mover el repo a macOS o Ubuntu
+## Operational Context For Moving The Repo To macOS Or Ubuntu
 
 ### macOS
 
-1. Instalar Node.js 20+, Rust y dependencias Tauri habituales.
-2. Instalar `codex`, `claude` y/o `gemini` en una ruta detectable, por ejemplo con Homebrew/npm global.
-3. Verificar que `which codex`, `which claude` y/o `which gemini` devuelven ruta desde terminal.
-4. Ejecutar:
+1. Install Node.js 20+, Rust, and the usual Tauri dependencies.
+2. Install `codex`, `claude`, and/or `gemini` in a detectable path, for example with Homebrew or global npm.
+3. Verify that `which codex`, `which claude`, and/or `which gemini` return a path from the terminal.
+4. Run:
 
 ```bash
 npm install
@@ -695,16 +691,16 @@ npm test
 npm run tauri dev
 ```
 
-5. Validar manualmente que la app detecta CLIs aunque se lance desde el bundle/Finder, donde `PATH` puede ser mas limitado.
+5. Manually validate that the app detects CLIs when launched from the bundle/Finder, where `PATH` may be more limited.
 
 ### Ubuntu
 
-Si el repositorio se lleva a una maquina Ubuntu para seguir el desarrollo:
+If the repository is moved to an Ubuntu machine for continued development:
 
-1. Instalar Node.js, Rust y dependencias de Tauri/WebKitGTK.
-2. Instalar `codex` y, si se desea, `claude`.
-3. Verificar que `which codex` y `which claude` devuelven ruta.
-4. Ejecutar:
+1. Install Node.js, Rust, and Tauri/WebKitGTK dependencies.
+2. Install `codex` and, optionally, `claude`.
+3. Verify that `which codex` and `which claude` return a path.
+4. Run:
 
 ```bash
 npm install
@@ -712,32 +708,32 @@ npm test
 npm run tauri dev
 ```
 
-5. Validar manualmente en esa maquina:
-   - que `codex --no-alt-screen` abre bien en PTY y responde a `/status`
-   - que `claude` responde a doble `/usage` si aparece su pantalla inicial
-   - que la bandeja del sistema y la transparencia se comportan bien en el entorno grafico usado
+5. Manually validate on that machine:
+   - `codex --no-alt-screen` opens correctly in a PTY and responds to `/status`
+   - `claude` responds to a second `/usage` if its initial screen appears
+   - system tray and transparency behave acceptably in the desktop environment in use
 
-Si no es posible recuperar el estado de la sesion de desarrollo anterior, este fichero debe bastar para entender:
+If the previous development session state cannot be recovered, this file must be enough to understand:
 
-- que Codex y Claude ya usan PTY real
-- que Claude puede requerir dos `/usage`
-- que el parser de Claude debe tolerar tokens pegados tras limpiar ANSI
-- que la altura del widget debe adaptarse al numero de providers
-- que el proyecto ya tiene una capa de plataforma para Windows y Unix
+- Codex and Claude already use real PTYs
+- Claude may require two `/usage` commands
+- the Claude parser must tolerate joined tokens after ANSI cleanup
+- widget height must adapt to provider count
+- the project already has a platform layer for Windows and Unix
 
 ---
 
-## Resultado esperado
+## Expected Result
 
-La aplicacion ejecutable debe:
+The executable application must:
 
-1. Lanzarse sin consola visible en Windows y de forma nativa en Ubuntu.
-2. Detectar Codex, Claude y Gemini si estan instalados.
-3. Obtener uso con los flujos correctos por provider.
-4. Mostrar widget flotante.
-5. Mostrar limite principal y semanal cuando existan.
-6. Refrescar automaticamente.
-7. Permitir refresco manual.
-8. Ocultarse/restaurarse desde bandeja cuando la plataforma lo soporte adecuadamente.
-9. Mostrar textos en espanol o ingles segun idioma del sistema.
-10. Poder extenderse a otros CLIs sin rehacer la base.
+1. Start without a visible console on Windows and as a native app on Ubuntu.
+2. Detect Codex, Claude, and Gemini if installed.
+3. Retrieve usage through the correct provider-specific flows.
+4. Show a floating widget.
+5. Show primary and weekly limits when available.
+6. Refresh automatically.
+7. Allow manual refresh.
+8. Hide/restore from the system tray when the platform supports it well.
+9. Show Spanish or English text based on system language.
+10. Be extensible to other CLIs without rebuilding the foundation.

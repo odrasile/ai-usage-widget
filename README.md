@@ -1,63 +1,72 @@
 # AI Usage Widget
 
-Widget desktop para macOS, Windows y Ubuntu que muestra el uso disponible de Codex, Claude Code y Gemini usando sus CLIs locales.
+A compact desktop widget for macOS, Windows, and Ubuntu Desktop that shows remaining usage for local AI coding tools through their CLIs.
 
 ![AI Usage Widget screenshot](docs/images/widget-screenshot.svg)
 
-## Estado del repositorio
+Project page: <https://odrasile.github.io/ai-usage-widget/>
 
-- Licencia: MIT
-- Autor: Elisardo González Agulla
-- Stack: Tauri + TypeScript + backend Node local
+## What It Does
 
-## Publicacion en GitHub
+AI Usage Widget is a local-first Tauri desktop app. It detects installed AI coding CLIs, asks each one for quota or usage information, and displays the result in a small always-on-top widget.
 
-El repositorio queda preparado para publicarse con:
+Supported providers:
 
-- `README.md`
-- `LICENSE`
-- `.gitignore`
-- `.gitattributes`
-- `CONTRIBUTING.md`
-- `SECURITY.md`
-- plantillas basicas de issues y pull request en `.github/`
-- workflows de CI y release en `.github/workflows/`
+- Codex
+- Claude Code
+- Gemini CLI
 
-## Requisitos
+The app does not call external APIs to retrieve quota data. It only talks to local command-line tools installed on your machine.
 
-- macOS, Windows o Ubuntu
-- Node.js 20 o superior
-- Rust y Cargo para compilar Tauri
-- CLI `codex`, `claude` y/o `gemini` instaladas si se quieren ver datos reales
+## Features
 
-### Politica de Node.js
+- Floating, borderless, always-on-top desktop widget.
+- Local provider detection for Codex, Claude Code, and Gemini CLI.
+- Usage bars for the main limit and weekly limit when available.
+- Manual and automatic refresh.
+- Previous data stays visible while refreshes are running.
+- Tray hide/restore support where the platform supports it.
+- English and Spanish UI, selected from the system/browser language or app settings.
+- Cross-platform build setup for Windows, Ubuntu Desktop, and macOS.
 
-Node.js es necesario en los tres sistemas operativos soportados porque la app usa un backend local en Node para detectar CLIs, lanzar procesos auxiliares y parsear la salida de `codex`, `claude` y `gemini`.
+## Requirements
 
-Los imports como `node:fs`, `node:path` o `node:child_process` son modulos nativos incluidos en Node.js. No son paquetes de npm y por eso no aparecen en `node_modules`.
+- macOS, Windows, or Ubuntu Desktop.
+- Node.js 20 or newer.
+- Rust and Cargo for Tauri builds.
+- One or more supported CLIs installed if you want real usage data:
+  - `codex`
+  - `claude`
+  - `gemini`
 
-Instalacion recomendada:
+## Node.js Runtime Policy
 
-- Windows: instalar Node.js 20+ desde el instalador oficial o mediante `winget`.
-- macOS: instalar Node.js 20+ mediante Homebrew, Volta, nvm o el instalador oficial.
-- Ubuntu: instalar Node.js 20+ desde NodeSource, nvm o el gestor de paquetes que garantice una version 20 o superior.
+Node.js is required on all supported platforms because the app uses a local Node backend to detect CLIs, spawn helper processes, manage PTYs, and parse provider output.
 
-La app resuelve el binario `node` siguiendo una politica comun:
+Imports such as `node:fs`, `node:path`, and `node:child_process` are built into Node.js. They are not npm packages and therefore do not appear in `node_modules`.
 
-1. `MONITORAI_NODE_BIN`, si esta definido.
-2. runtime empaquetado junto a la app, si existe.
-3. `node` o `nodejs` disponible en `PATH`.
-4. rutas habituales del sistema.
+Recommended installation:
 
-Si la app empaquetada no encuentra Node, define `MONITORAI_NODE_BIN` con la ruta absoluta del binario:
+- Windows: install Node.js 20+ from the official installer or with `winget`.
+- macOS: install Node.js 20+ with Homebrew, Volta, nvm, or the official installer.
+- Ubuntu: install Node.js 20+ with NodeSource, nvm, or a package source that provides version 20 or newer.
+
+The app resolves the `node` binary in this order:
+
+1. `MONITORAI_NODE_BIN`, if set.
+2. A bundled Node runtime next to the app, if present.
+3. `node` or `nodejs` available in `PATH`.
+4. Common system locations.
+
+If the packaged app cannot find Node, set `MONITORAI_NODE_BIN` to the absolute path of the binary:
 
 ```bash
 MONITORAI_NODE_BIN=/usr/bin/node ./AI-Usage-Widget.AppImage
 ```
 
-## Dependencias Ubuntu
+## Ubuntu Dependencies
 
-En Ubuntu, instala ademas las dependencias habituales de Tauri/WebKitGTK:
+On Ubuntu, install the usual Tauri/WebKitGTK build dependencies:
 
 ```bash
 sudo apt update
@@ -73,31 +82,31 @@ sudo apt install -y \
   librsvg2-dev
 ```
 
-## Notas macOS
+## macOS Notes
 
-En macOS la app puede arrancar desde Finder/Dock con un `PATH` distinto al de la terminal. El backend anade rutas habituales de Homebrew, MacPorts, npm global, `~/.local/bin`, Cargo, nvm, Volta y asdf antes de detectar o lanzar CLIs.
+When started from Finder or the Dock, macOS apps may receive a different `PATH` than the one available in your terminal. The backend adds common Homebrew, MacPorts, global npm, `~/.local/bin`, Cargo, nvm, Volta, and asdf paths before detecting or launching CLIs.
 
-Si Node no esta en una ruta del sistema, define `MONITORAI_NODE_BIN` con la ruta absoluta del binario `node`.
+If Node is not available from a standard location, set `MONITORAI_NODE_BIN` to the absolute path of the `node` binary.
 
-## Instalacion local
+## Local Setup
 
 ```bash
 npm ci
 ```
 
-Usa `npm install` solo cuando vayas a actualizar dependencias y regenerar `package-lock.json`.
+Use `npm install` only when intentionally updating dependencies and regenerating `package-lock.json`.
 
-## Desarrollo
+## Development
 
 ```bash
 npm run tauri:dev
 ```
 
-La ventana se abre como widget flotante, sin bordes y siempre visible.
+The app opens as a floating, borderless, always-on-top widget.
 
-En Windows la transparencia del widget es un objetivo razonable. En Linux no debe asumirse transparencia real: Tauri depende de WebKitGTK y el resultado final tambien depende del compositor y del entorno grafico. El fallback soportado en Linux es un panel oscuro estable y legible.
+On Windows, widget transparency is a reasonable target. On Linux, real transparency depends on Tauri, WebKitGTK, GTK, the compositor, and the desktop environment. The supported Linux fallback is a stable, readable dark panel.
 
-## Validacion local
+## Validation
 
 ```bash
 npm test
@@ -105,9 +114,9 @@ npm run build
 cargo check --manifest-path src-tauri/Cargo.toml
 ```
 
-## Build local
+## Local Builds
 
-El build local genera bundles para la plataforma actual. No es una estrategia de cross-compilacion completa.
+Local builds generate bundles for the current platform. This is not a complete cross-compilation strategy.
 
 ### Windows
 
@@ -115,9 +124,9 @@ El build local genera bundles para la plataforma actual. No es una estrategia de
 npm run tauri:build
 ```
 
-El ejecutable se genera bajo `src-tauri/target/release/bundle`.
+Bundles are generated under `src-tauri/target/release/bundle`.
 
-No distribuyas solo el `.exe` suelto movido a otra carpeta. La app necesita recursos empaquetados junto al bundle, incluyendo el backend Node y `node-pty`. Para uso normal instala desde el `.msi` o el instalador NSIS generado por Tauri.
+Do not distribute only the standalone `.exe` copied to another folder. The app needs packaged resources next to the bundle, including the Node backend and `node-pty`. For normal use, install from the `.msi` or NSIS installer generated by Tauri.
 
 ### Ubuntu
 
@@ -125,7 +134,7 @@ No distribuyas solo el `.exe` suelto movido a otra carpeta. La app necesita recu
 npm run tauri:build
 ```
 
-En Ubuntu el bundle saldra bajo `src-tauri/target/release/bundle`, normalmente como `.deb` y/o AppImage segun tu entorno.
+Ubuntu bundles are generated under `src-tauri/target/release/bundle`, usually as `.deb` and/or AppImage depending on the environment.
 
 ### macOS
 
@@ -133,23 +142,23 @@ En Ubuntu el bundle saldra bajo `src-tauri/target/release/bundle`, normalmente c
 npm run tauri:build
 ```
 
-En macOS el bundle saldra bajo `src-tauri/target/release/bundle`, normalmente como `.app` y/o `.dmg` segun tu entorno.
+macOS bundles are generated under `src-tauri/target/release/bundle`, usually as `.app` and/or `.dmg` depending on the environment.
 
-## Releases e instaladores
+## Releases And Installers
 
-Los instaladores deben generarse en sistemas nativos o en runners CI equivalentes:
+Installers should be built on native systems or equivalent CI runners:
 
 - Windows: `windows-latest`
 - Ubuntu: `ubuntu-latest`
 - macOS: `macos-latest`
 
-El workflow de release se dispara con tags `v*` y sube los bundles generados por Tauri a GitHub Releases.
+The release workflow runs for tags matching `v*` and uploads Tauri bundles to GitHub Releases.
 
-La primera distribucion puede publicarse sin firma ni notarizacion. En ese caso deben esperarse avisos de SmartScreen en Windows y Gatekeeper en macOS.
+The first distribution can be published without signing or notarization. In that case, users should expect SmartScreen warnings on Windows and Gatekeeper warnings on macOS.
 
-## Configuracion opcional
+## Optional Configuration
 
-Crear `config.json` en la raiz:
+Create `config.json` in the repository root:
 
 ```json
 {
@@ -157,20 +166,20 @@ Crear `config.json` en la raiz:
 }
 ```
 
-El valor se limita entre 30 y 120 segundos.
+The value is clamped between 30 and 120 seconds.
 
 ## Scripts
 
-- `npm run dev`: servidor Vite del frontend
-- `npm run build`: compila TypeScript y genera `dist`
-- `npm run tauri:dev`: ejecuta la app Tauri en modo desarrollo
-- `npm run tauri:build`: genera build para la plataforma actual
-- `npm run tauri -- <args>`: passthrough directo al CLI de Tauri mediante el wrapper local
-- `npm test`: valida parsers con outputs simulados
+- `npm run dev`: start the Vite frontend server.
+- `npm run build`: compile TypeScript and generate `dist`.
+- `npm run tauri:dev`: run the Tauri app in development mode.
+- `npm run tauri:build`: build the app for the current platform.
+- `npm run tauri -- <args>`: pass arguments directly to the Tauri CLI through the local wrapper.
+- `npm test`: validate parsers with simulated provider output.
 
-## Seguridad
+## Security Model
 
-El backend solo permite ejecutar comandos de la whitelist:
+The backend only executes commands from a small whitelist:
 
 - `where codex` / `which codex`
 - `where claude` / `which claude`
@@ -179,4 +188,36 @@ El backend solo permite ejecutar comandos de la whitelist:
 - `claude ...`
 - `gemini ...`
 
-Cada proceso usa timeout y los fallos de una CLI no bloquean el widget.
+Every process uses a timeout. A failing provider should not block the widget or hide data from other providers.
+
+## Contributing
+
+See [CONTRIBUTING.md](./CONTRIBUTING.md) for local setup and pull request guidelines.
+
+Security issues should be reported according to [SECURITY.md](./SECURITY.md).
+
+## Alternatives / Why This Project
+
+There are useful tools in this space, including terminal monitors and provider-specific usage analyzers. AI Usage Widget has a narrower goal: a small desktop widget that reads usage from local CLIs without asking for credentials or calling quota APIs.
+
+| Project | Main focus | Difference from AI Usage Widget |
+| --- | --- | --- |
+| [CodexBar](https://github.com/search?q=CodexBar&type=repositories) | Codex-oriented status/menu bar tools | AI Usage Widget targets Codex, Claude Code, and Gemini from one cross-platform desktop widget. |
+| [ClaudeBar](https://github.com/search?q=ClaudeBar&type=repositories) | Claude-oriented status/menu bar tools | AI Usage Widget is provider-agnostic and keeps provider integrations isolated by adapter/parser. |
+| [claude-usage-widget](https://github.com/search?q=claude-usage-widget&type=repositories) | Claude usage widgets | AI Usage Widget also supports Codex and Gemini and is designed for Windows, Ubuntu Desktop, and macOS. |
+| [Claude Code Usage Monitor](https://github.com/Maciek-roboblog/Claude-Code-Usage-Monitor) | Rich terminal monitoring for Claude Code | This project is a desktop widget and does not require a terminal dashboard to stay visible. |
+| [ccusage](https://github.com/ryoppippi/ccusage) | CLI analysis of local Claude Code/Codex usage files | This project queries local CLIs for current status and displays a compact always-on-top widget. |
+
+Why this project:
+
+- No external quota APIs.
+- No credentials collected by the widget.
+- Local CLI detection only.
+- Cross-platform desktop target: Windows, Ubuntu Desktop, and macOS.
+- Fault-tolerant provider model: one failing CLI should not break the rest of the widget.
+
+Related official tools:
+
+- Gemini CLI: <https://github.com/google-gemini/gemini-cli>
+- Claude Code: <https://www.anthropic.com/claude-code>
+- OpenAI Codex CLI: <https://github.com/openai/codex>

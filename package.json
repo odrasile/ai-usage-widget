@@ -1,6 +1,6 @@
 {
   "name": "ai-usage-widget",
-  "version": "0.1.11",
+  "version": "0.1.12",
   "private": false,
   "author": "Elisardo González Agulla",
   "license": "MIT",
@@ -24,5 +24,28 @@
     "@tauri-apps/cli": "^2.0.0",
     "typescript": "^5.6.0",
     "vite": "^5.4.0"
-  }
+  },
+  "description": "Local-first desktop widget for Codex, Claude Code, and Gemini CLI usage",
+  "homepage": "https://odrasile.github.io/ai-usage-widget/",
+  "repository": {
+    "type": "git",
+    "url": "git+ssh://git@github.com/odrasile/ai-usage-widget.git"
+  },
+  "bugs": {
+    "url": "https://github.com/odrasile/ai-usage-widget/issues"
+  },
+  "keywords": [
+    "ai-usage",
+    "ai-usage-widget",
+    "codex",
+    "codex-cli",
+    "claude-code",
+    "claude-usage",
+    "gemini-cli",
+    "tauri",
+    "desktop-widget",
+    "usage-monitor",
+    "local-first",
+    "cross-platform"
+  ]
 }

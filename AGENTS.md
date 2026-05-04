@@ -1,94 +1,94 @@
-﻿# AGENTS.md
+# AGENTS.md
 
-## Objetivo
+## Goal
 
-Implementar y mantener un widget de escritorio para Windows, Ubuntu Desktop y macOS que monitoriza el uso de herramientas AI coding mediante sus CLIs locales.
+Implement and maintain a desktop widget for Windows, Ubuntu Desktop, and macOS that monitors AI coding tool usage through local CLIs.
 
-El resultado debe ser:
+The expected result is:
 
-- Aplicacion desktop funcional con Tauri.
-- Frontend en TypeScript.
-- Widget flotante, compacto, always-on-top y sin bordes.
-- Integracion local con Codex, Claude Code y Gemini.
-- Build funcional en Windows, Ubuntu Desktop y macOS.
-- Base simple, modular y lista para distribuir.
-
----
-
-## Principios de trabajo
-
-1. KISS: mantener el codigo simple y directo.
-2. Evitar sobreingenieria.
-3. Separar responsabilidades por modulo.
-4. No introducir dependencias salvo que resuelvan una limitacion real.
-5. No usar red ni APIs externas para obtener datos.
-6. Priorizar tolerancia a errores: si un provider falla, el widget debe seguir funcionando.
-7. No bloquear la UI mientras se consultan CLIs.
+- A functional Tauri desktop application.
+- A TypeScript frontend.
+- A compact, floating, always-on-top, borderless widget.
+- Local integration with Codex, Claude Code, and Gemini.
+- Working builds for Windows, Ubuntu Desktop, and macOS.
+- A simple, modular base that is ready to distribute.
 
 ---
 
-## Flujo de trabajo
+## Working Principles
 
-1. Inicializar o revisar proyecto Tauri + frontend.
-2. Implementar deteccion de CLIs.
-3. Implementar ejecucion segura de comandos.
-4. Implementar adapters por provider.
-5. Implementar parsers con tests.
-6. Implementar modelo de datos unificado.
-7. Implementar UI minima.
-8. Integrar scheduler de actualizacion.
-9. Validar deteccion, parsing y UI.
-10. Preparar builds e instaladores para Windows, Ubuntu Desktop y macOS.
-11. Documentar.
-
-No saltar fases salvo que el repositorio ya tenga una fase completada.
+1. KISS: keep the code simple and direct.
+2. Avoid overengineering.
+3. Separate responsibilities by module.
+4. Do not add dependencies unless they solve a real limitation.
+5. Do not use the network or external APIs to obtain usage data.
+6. Prioritize fault tolerance: if one provider fails, the widget must keep working.
+7. Do not block the UI while querying CLIs.
 
 ---
 
-## Restricciones tecnicas
+## Workflow
+
+1. Initialize or review the Tauri + frontend project.
+2. Implement CLI detection.
+3. Implement safe command execution.
+4. Implement provider adapters.
+5. Implement parsers with tests.
+6. Implement the unified data model.
+7. Implement the minimal UI.
+8. Integrate the refresh scheduler.
+9. Validate detection, parsing, and UI behavior.
+10. Prepare builds and installers for Windows, Ubuntu Desktop, and macOS.
+11. Document the result.
+
+Do not skip phases unless the repository already has that phase completed.
+
+---
+
+## Technical Constraints
 
 - Frontend: TypeScript.
-- Framework desktop: Tauri.
-- Backend local: Node.
-- Ejecucion de CLI: `child_process` y, cuando haga falta TTY real, pseudo-terminal.
-- No usar Electron.
-- No usar librerias pesadas de UI.
-- No usar APIs externas para consultar uso.
-- No implementar historico, multiusuario ni extension de navegador.
+- Desktop framework: Tauri.
+- Local backend: Node.
+- CLI execution: `child_process` and, when a real TTY is required, a pseudo-terminal.
+- Do not use Electron.
+- Do not use heavy UI libraries.
+- Do not use external APIs to query usage.
+- Do not implement history, multi-user support, or browser extensions.
 
 ---
 
-## Integracion Codex
+## Codex Integration
 
-Codex no debe consultarse con `codex status`, porque en la version actual `status` no es subcomando.
+Codex must not be queried with `codex status`, because current versions do not expose `status` as a subcommand.
 
-Flujo correcto:
+Correct flow:
 
-1. Detectar instalacion con `where.exe codex` en Windows o `which codex` en Unix/macOS.
-2. Abrir `codex --no-alt-screen` dentro de un pseudo-terminal.
-3. Enviar `/status`.
-4. Capturar salida.
-5. Cerrar con `/quit`.
+1. Detect installation with `where.exe codex` on Windows or `which codex` on Unix/macOS.
+2. Open `codex --no-alt-screen` inside a pseudo-terminal.
+3. Send `/status`.
+4. Capture output.
+5. Exit with `/quit`.
 
-Datos esperados:
+Expected data:
 
 - `5h limit: ... NN% left (resets HH:MM)`
 - `Weekly limit: ... NN% left (resets ...)`
 
-El adapter debe extraer porcentaje y reset de 5h y semanal.
+The adapter must extract percentage and reset data for both the 5h and weekly limits.
 
-No usar `codex exec /status` para el widget: crea una sesion non-interactive, puede consumir tokens/eventos y no representa el comando interno del TUI.
+Do not use `codex exec /status` for the widget. It creates a non-interactive session, may consume tokens/events, and does not represent the TUI internal command.
 
 ---
 
-## Integracion Claude Code
+## Claude Code Integration
 
-1. Detectar con `where.exe claude` en Windows o `which claude` en Unix/macOS.
-2. Ejecutar `claude`.
-3. Enviar `/usage` por stdin.
-4. Parsear remaining requests, total requests y reset.
+1. Detect installation with `where.exe claude` on Windows or `which claude` on Unix/macOS.
+2. Run `claude`.
+3. Send `/usage` through stdin or PTY input depending on the adapter path.
+4. Parse remaining requests, total requests, and reset.
 
-Calculo:
+Calculation:
 
 ```text
 percent_left = remaining / total * 100
@@ -96,24 +96,24 @@ percent_left = remaining / total * 100
 
 ---
 
-## Integracion Gemini CLI
+## Gemini CLI Integration
 
-Gemini CLI muestra la cuota en la barra de estado del TUI al iniciar.
+Gemini CLI shows quota in the TUI status bar when it starts.
 
-Flujo correcto:
+Correct flow:
 
-1. Detectar con `where.exe gemini` en Windows o `which gemini` en Unix/macOS.
-2. Lanzar `gemini` dentro de un pseudo-terminal cuando haga falta capturar el TUI.
-3. Usar `GEMINI_API_KEY=1` solo si el usuario no ha definido `GEMINI_API_KEY`, para evitar dialogos de keyring sin persistir ese valor.
-4. Capturar la tabla de estado.
-5. Cerrar el PTY de forma controlada, incluyendo el grupo de procesos en Unix.
+1. Detect installation with `where.exe gemini` on Windows or `which gemini` on Unix/macOS.
+2. Launch `gemini` inside a pseudo-terminal when the TUI must be captured.
+3. Use `GEMINI_API_KEY=1` only if the user has not defined `GEMINI_API_KEY`, to avoid keyring dialogs without persisting that value.
+4. Capture the status table.
+5. Close the PTY in a controlled way, including the process group on Unix.
 
-Datos esperados:
+Expected data:
 
-- columna `quota` con `NN% used`
-- columna `quota` con `limit reached`
+- `quota` column with `NN% used`
+- `quota` column with `limit reached`
 
-Calculo:
+Calculation:
 
 ```text
 percent_left = 100 - percent_used
@@ -121,58 +121,58 @@ percent_left = 100 - percent_used
 
 ---
 
-## Seguridad
+## Security
 
-- Solo ejecutar comandos en whitelist: `where.exe`/`which`, `codex`, `claude`, `gemini`.
-- No ejecutar input arbitrario del usuario.
-- Usar argumentos fijos.
-- Anadir timeout a toda ejecucion.
-- No consultar APIs externas para obtener cuotas.
-- En Windows, ocultar consolas auxiliares:
-  - Tauri debe compilar como subsystem `windows`.
-  - Procesos Node lanzados desde Rust deben usar `CREATE_NO_WINDOW`.
-  - PTY de Codex debe usar modo oculto cuando este disponible.
-- En Unix/macOS:
-  - No asumir privilegios elevados.
-  - Cerrar PTYs y grupos de proceso auxiliares al completar lectura.
-  - No depender de APIs exclusivas de Windows fuera de ramas condicionadas por plataforma.
-
----
-
-## UI y UX
-
-El widget debe:
-
-- Ser always-on-top.
-- No tener decoraciones nativas.
-- Ser arrastrable desde la cabecera.
-- Tener boton de cerrar.
-- Tener boton para ocultar a bandeja del sistema.
-- Restaurarse desde la bandeja con clic o menu.
-- Mostrar estado de inicializacion/deteccion de CLIs con indicador visual.
-- Durante refrescos, mantener datos anteriores visibles y mostrar indicador discreto.
-- Detectar idioma del sistema/navegador y mostrar textos en espanol o ingles.
-
-Para cada provider:
-
-- Mostrar nombre.
-- Mostrar barra 5h si existe.
-- Mostrar barra semanal si existe.
-- Mostrar porcentaje y reset por barra.
-- El color del porcentaje debe coincidir con el color de su barra.
-
-Escala recomendada de color:
-
-- 100%: verde.
-- 55%: amarillo.
-- 25%: naranja.
-- 0%: rojo.
+- Only execute whitelisted commands: `where.exe`/`which`, `codex`, `claude`, and `gemini`.
+- Do not execute arbitrary user input.
+- Use fixed arguments.
+- Add timeouts to every execution.
+- Do not query external APIs for quota data.
+- On Windows, hide helper consoles:
+  - Tauri must compile as the `windows` subsystem.
+  - Node processes launched from Rust must use `CREATE_NO_WINDOW`.
+  - Codex PTY should use hidden mode when available.
+- On Unix/macOS:
+  - Do not assume elevated privileges.
+  - Close PTYs and helper process groups after reading.
+  - Do not depend on Windows-only APIs outside platform-gated branches.
 
 ---
 
-## Modelo de datos
+## UI And UX
 
-Provider con datos:
+The widget must:
+
+- Be always-on-top.
+- Have no native window decorations.
+- Be draggable from the header.
+- Have a close button.
+- Have a button to hide to the system tray.
+- Restore from the tray with a click or menu.
+- Show initialization/CLI detection state with a visual indicator.
+- Keep previous data visible during refreshes and show a subtle refresh indicator.
+- Detect the system/browser language and show Spanish or English text.
+
+For each provider:
+
+- Show name.
+- Show the 5h bar if available.
+- Show the weekly bar if available.
+- Show percentage and reset for each bar.
+- Match percentage text color to the corresponding bar color.
+
+Recommended color scale:
+
+- 100%: green.
+- 55%: yellow.
+- 25%: orange.
+- 0%: red.
+
+---
+
+## Data Model
+
+Provider with data:
 
 ```json
 {
@@ -191,7 +191,7 @@ Provider con datos:
 }
 ```
 
-Provider detectado sin uso:
+Provider detected without usage:
 
 ```json
 {
@@ -206,17 +206,17 @@ Provider detectado sin uso:
 
 ## Testing
 
-El agente debe:
+The agent must:
 
-- Simular outputs de CLI.
-- Cubrir output realista de `codex /status`.
-- Cubrir output realista de `claude /usage`.
-- Cubrir output realista de `gemini` con quota en tabla de estado.
-- Manejar errores de parsing.
-- Validar que la UI no rompe si falta un provider.
-- Validar que un provider detectado pero sin datos no se muestra como inexistente.
+- Simulate CLI outputs.
+- Cover realistic `codex /status` output.
+- Cover realistic `claude /usage` output.
+- Cover realistic `gemini` output with quota in the status table.
+- Handle parsing errors.
+- Validate that the UI does not break if a provider is missing.
+- Validate that a provider detected without data is not shown as nonexistent.
 
-Comandos minimos:
+Minimum commands:
 
 ```bash
 npm test
@@ -227,21 +227,21 @@ npm run tauri build
 
 ---
 
-## Entregables
+## Deliverables
 
-- Codigo fuente completo.
-- Scripts de build.
-- README con instrucciones.
-- Builds e instaladores para Windows, Ubuntu Desktop y macOS cuando se ejecuten en su plataforma nativa o runner CI equivalente.
-- Tests de parsers.
+- Complete source code.
+- Build scripts.
+- README with instructions.
+- Builds and installers for Windows, Ubuntu Desktop, and macOS when run on their native platform or an equivalent CI runner.
+- Parser tests.
 
 ---
 
-## No hacer
+## Do Not
 
-- No anadir features no especificadas.
-- No implementar historico.
-- No implementar multiusuario.
-- No anadir extension de navegador.
-- No consultar servicios externos para uso/cuotas.
-- No reemplazar Tauri por Electron.
+- Do not add unspecified features.
+- Do not implement history.
+- Do not implement multi-user support.
+- Do not add a browser extension.
+- Do not query external services for usage/quota data.
+- Do not replace Tauri with Electron.
