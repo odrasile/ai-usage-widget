@@ -271,6 +271,65 @@ body {
   text-align: right;
 }
 
+.window-info-popover__updates {
+  display: grid;
+  gap: 8px;
+  padding-top: 4px;
+}
+
+.update-check-button {
+  background: rgba(98, 184, 255, 0.2);
+  color: #f5f7fb;
+  border: 1px solid rgba(98, 184, 255, 0.28);
+  border-radius: 4px;
+  padding: 6px 8px;
+  font-size: 12px;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.update-check-button:hover {
+  background: rgba(98, 184, 255, 0.32);
+}
+
+.update-check-button:disabled {
+  cursor: wait;
+  opacity: 0.78;
+}
+
+.update-check-status {
+  display: grid;
+  gap: 4px;
+  min-height: 0;
+  color: rgba(245, 247, 251, 0.78);
+  font-size: 11px;
+  font-weight: 500;
+  line-height: 1.35;
+  overflow-wrap: anywhere;
+}
+
+.update-check-status a {
+  color: #8bd0ff;
+  text-decoration: none;
+}
+
+.update-check-status a:hover {
+  color: #bde4ff;
+  text-decoration: underline;
+}
+
+.update-check-status--available {
+  color: #f5d56f;
+}
+
+.update-check-status--current {
+  color: #77d895;
+}
+
+.update-check-status--error {
+  color: #ff9b9b;
+}
+
 .config-refresh-input {
   width: 60px;
   background: rgba(255, 255, 255, 0.08);

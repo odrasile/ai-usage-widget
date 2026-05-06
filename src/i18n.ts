@@ -10,6 +10,12 @@ export type Messages = {
   author: string;
   version: string;
   build: string;
+  checkForUpdates: string;
+  checkingUpdates: string;
+  updateAvailable: string;
+  updateCurrent: string;
+  updateError: string;
+  releasePage: string;
   resize: string;
   developedBy: string;
   detecting: string;
@@ -53,6 +59,12 @@ const messages: Record<Locale, Messages> = {
     author: "Author",
     version: "Version",
     build: "Build",
+    checkForUpdates: "Check for updates",
+    checkingUpdates: "Checking...",
+    updateAvailable: "Version {version} available",
+    updateCurrent: "You are up to date",
+    updateError: "Unable to check updates",
+    releasePage: "Release page",
     resize: "Resize widget",
     developedBy: "Developed by Elisardo González Agulla",
     detecting: "Detecting CLIs",
@@ -94,6 +106,12 @@ const messages: Record<Locale, Messages> = {
     author: "Autor",
     version: "Version",
     build: "Compilacion",
+    checkForUpdates: "Buscar actualizaciones",
+    checkingUpdates: "Comprobando...",
+    updateAvailable: "Version {version} disponible",
+    updateCurrent: "Ya tienes la ultima version",
+    updateError: "No se pudieron comprobar actualizaciones",
+    releasePage: "Pagina de la release",
     resize: "Redimensionar widget",
     developedBy: "Desarrollado por Elisardo González Agulla",
     detecting: "Detectando CLIs",

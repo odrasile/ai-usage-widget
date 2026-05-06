@@ -11,6 +11,7 @@ const providerLabels: Record<string, string> = {
   gemini: "Gemini"
 };
 const STATUS_PREVIEW_LENGTH = 56;
+const LATEST_RELEASE_URL = "https://api.github.com/repos/odrasile/ai-usage-widget/releases/latest";
 
 export function renderSnapshot(
   root: HTMLElement,
@@ -233,6 +234,10 @@ function createShell(
           <div class="window-info-popover__row"><span>${escapeHtml(text.author)}</span><strong>${escapeHtml(appMetadata.author)}</strong></div>
           <div class="window-info-popover__row"><span>${escapeHtml(text.version)}</span><strong>${escapeHtml(appMetadata.version)}</strong></div>
           <div class="window-info-popover__row"><span>${escapeHtml(text.build)}</span><strong>${escapeHtml(appMetadata.build)}</strong></div>
+          <div class="window-info-popover__updates">
+            <button class="update-check-button" type="button">${escapeHtml(text.checkForUpdates)}</button>
+            <div class="update-check-status" aria-live="polite"></div>
+          </div>
         </div>
       </div>
       <button class="window-refresh${isRefreshing ? " window-refresh--active" : ""}" type="button" aria-label="${escapeHtml(isRefreshing ? text.refreshing : text.refresh)}" title="${escapeHtml(isRefreshing ? text.refreshing : text.refresh)}"${isRefreshing ? " disabled" : ""}><span class=\"window-refresh__glyph\" aria-hidden=\"true\">&#8635;</span></button>
@@ -264,6 +269,8 @@ function createShell(
   const infoPopover = header.querySelector<HTMLElement>(".window-info-popover");
 
   if (infoButton && infoPopover) {
+    const updateButton = infoPopover.querySelector<HTMLButtonElement>(".update-check-button");
+    const updateStatus = infoPopover.querySelector<HTMLElement>(".update-check-status");
     const closeInfo = () => {
       hideFloatingPopover(infoPopover);
       infoButton.setAttribute("aria-expanded", "false");
@@ -286,6 +293,9 @@ function createShell(
       if (!(event.target as HTMLElement).closest(".window-info-wrap")) {
         closeInfo();
       }
+    });
+    updateButton?.addEventListener("click", () => {
+      void checkForUpdates(appMetadata.version, text, updateButton, updateStatus);
     });
   }
 
@@ -442,6 +452,90 @@ function collectProviderVisibility(
     }
   });
   return nextVisibility;
+}
+
+async function checkForUpdates(
+  currentVersion: string,
+  text: Messages,
+  button: HTMLButtonElement,
+  status: HTMLElement | null
+): Promise<void> {
+  if (!status) {
+    return;
+  }
+
+  button.disabled = true;
+  status.className = "update-check-status update-check-status--checking";
+  status.textContent = text.checkingUpdates;
+
+  try {
+    const controller = new AbortController();
+    const timer = window.setTimeout(() => controller.abort(), 8_000);
+    const response = await fetch(LATEST_RELEASE_URL, {
+      headers: { Accept: "application/vnd.github+json" },
+      signal: controller.signal
+    });
+    window.clearTimeout(timer);
+
+    if (!response.ok) {
+      throw new Error(`GitHub returned ${response.status}`);
+    }
+
+    const release = await response.json() as { tag_name?: string; html_url?: string };
+    const latestVersion = normalizeVersion(release.tag_name ?? "");
+    const releaseUrl = release.html_url ?? "https://github.com/odrasile/ai-usage-widget/releases/latest";
+    const comparison = compareVersions(latestVersion, normalizeVersion(currentVersion));
+
+    if (comparison > 0) {
+      status.className = "update-check-status update-check-status--available";
+      status.innerHTML = `
+        <span>${escapeHtml(text.updateAvailable.replace("{version}", release.tag_name ?? latestVersion))}</span>
+        <a href="${escapeAttribute(releaseUrl)}" target="_blank" rel="noreferrer">${escapeHtml(text.releasePage)}</a>
+      `;
+    } else {
+      status.className = "update-check-status update-check-status--current";
+      status.textContent = text.updateCurrent;
+    }
+  } catch (error) {
+    const message = error instanceof Error && error.name !== "AbortError"
+      ? `${text.updateError}: ${error.message}`
+      : text.updateError;
+    status.className = "update-check-status update-check-status--error";
+    status.textContent = message;
+  } finally {
+    button.disabled = false;
+  }
+}
+
+function normalizeVersion(value: string): string {
+  return value.trim().replace(/^v/i, "");
+}
+
+function compareVersions(left: string, right: string): number {
+  const leftParts = parseVersion(left);
+  const rightParts = parseVersion(right);
+  if (!leftParts || !rightParts) {
+    return left === right ? 0 : -1;
+  }
+
+  for (let index = 0; index < Math.max(leftParts.length, rightParts.length); index += 1) {
+    const leftPart = leftParts[index] ?? 0;
+    const rightPart = rightParts[index] ?? 0;
+    if (leftPart !== rightPart) {
+      return leftPart > rightPart ? 1 : -1;
+    }
+  }
+
+  return 0;
+}
+
+function parseVersion(value: string): number[] | null {
+  const cleaned = value.split("-")[0];
+  if (!/^\d+(?:\.\d+){0,2}$/.test(cleaned)) {
+    return null;
+  }
+
+  return cleaned.split(".").map((part) => Number(part));
 }
 
 function createBody(isRefreshing: boolean, text: Messages): HTMLElement {
