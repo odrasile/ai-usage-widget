@@ -308,14 +308,25 @@ body {
   overflow-wrap: anywhere;
 }
 
-.update-check-status a {
+.update-release-button {
+  justify-self: start;
+  background: rgba(255, 255, 255, 0.08);
   color: #8bd0ff;
-  text-decoration: none;
+  border: 1px solid rgba(139, 208, 255, 0.24);
+  border-radius: 4px;
+  padding: 4px 7px;
+  font: inherit;
+  font-weight: 700;
+  cursor: pointer;
 }
 
-.update-check-status a:hover {
+.update-release-button:hover {
+  background: rgba(139, 208, 255, 0.16);
+  color: #8bd0ff;
+}
+
+.update-release-button:active {
   color: #bde4ff;
-  text-decoration: underline;
 }
 
 .update-check-status--available {

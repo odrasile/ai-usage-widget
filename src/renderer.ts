@@ -1,5 +1,6 @@
 import type { AppConfig, AppMetadata, ProviderUsage, UsageSnapshot, ViewMode } from "./types";
 import { getCurrentWindow } from "@tauri-apps/api/window";
+import { openUrl } from "@tauri-apps/plugin-opener";
 import type { Messages } from "./i18n";
 import { quitApp } from "./tauri";
 
@@ -57,7 +58,7 @@ export function renderSnapshot(
   }
 
   shell.appendChild(body);
-  appendFooter(shell, isRefreshing ? text.refreshing : `${text.updated} ${formatTime(snapshot.updated_at)}`, isRefreshing);
+  appendFooter(shell, isRefreshing ? text.refreshing : `${text.updated} ${formatUpdatedAt(snapshot.updated_at, text.locale)}`, isRefreshing);
   root.appendChild(shell);
 }
 
@@ -488,10 +489,21 @@ async function checkForUpdates(
 
     if (comparison > 0) {
       status.className = "update-check-status update-check-status--available";
-      status.innerHTML = `
-        <span>${escapeHtml(text.updateAvailable.replace("{version}", release.tag_name ?? latestVersion))}</span>
-        <a href="${escapeAttribute(releaseUrl)}" target="_blank" rel="noreferrer">${escapeHtml(text.releasePage)}</a>
-      `;
+      status.textContent = "";
+      const message = document.createElement("span");
+      message.textContent = text.updateAvailable.replace("{version}", release.tag_name ?? latestVersion);
+      const openButton = document.createElement("button");
+      openButton.className = "update-release-button";
+      openButton.type = "button";
+      openButton.textContent = text.releasePage;
+      openButton.addEventListener("click", () => {
+        void openUrl(releaseUrl).catch((error) => {
+          const errorMessage = error instanceof Error ? error.message : String(error);
+          status.className = "update-check-status update-check-status--error";
+          status.textContent = `${text.updateError}: ${errorMessage}. ${releaseUrl}`;
+        });
+      });
+      status.append(message, openButton);
     } else {
       status.className = "update-check-status update-check-status--current";
       status.textContent = text.updateCurrent;
@@ -612,7 +624,7 @@ function updateFooterState(root: HTMLElement, text: Messages, updatedAt: string,
     return;
   }
 
-  footer.dataset.updatedLabel = `${text.updated} ${formatTime(updatedAt)}`;
+  footer.dataset.updatedLabel = `${text.updated} ${formatUpdatedAt(updatedAt, text.locale)}`;
   updateFooterRefreshingState(root.querySelector<HTMLElement>(".widget"), text, isRefreshing);
 }
 
@@ -716,6 +728,25 @@ function formatTime(value: string): string {
   }
 
   return date.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
+}
+
+function formatUpdatedAt(value: string, locale: "en" | "es"): string {
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) {
+    return "--:--";
+  }
+
+  const time = date.toLocaleTimeString(localeForIntl(locale), {
+    hour: "2-digit",
+    minute: "2-digit",
+    hour12: false
+  });
+  const day = date.toLocaleDateString(localeForIntl(locale), {
+    day: "numeric",
+    month: "short"
+  });
+
+  return `${time}, ${day}`;
 }
 
 function truncateStatus(value: string): string {
