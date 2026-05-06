@@ -3,7 +3,7 @@ import { LogicalPosition, LogicalSize } from "@tauri-apps/api/dpi";
 import { getCurrentWindow } from "@tauri-apps/api/window";
 import { detectLocale, getMessages } from "./i18n";
 import { renderError, renderLoading, renderSnapshot, renderTransparencyProbe, setRefreshingState, updateProviderPanel } from "./renderer";
-import { appendWindowDebugLog, getDetectedProviders, getProviderUsage, loadAppConfig, saveAppConfig, loadWindowState, saveWindowState } from "./tauri";
+import { appendWindowDebugLog, getDetectedProviders, getProviderUsage, loadAppConfig, saveAppConfig, loadWindowState, saveWindowState, setTraySeverity } from "./tauri";
 import type { AppConfig, AppMetadata, ProviderUsage, UsageSnapshot } from "./types";
 
 const SNAPSHOT_CACHE_KEY = "monitorai:last-snapshot";
@@ -28,7 +28,11 @@ const appMetadata: AppMetadata = {
 let appConfig: AppConfig = {
   refresh_interval_min: 2,
   view_mode: "consumed",
-  provider_visibility: {}
+  provider_visibility: {},
+  sound_alerts: {
+    enabled: false,
+    thresholds: [70, 90]
+  }
 };
 
 let text = getMessages(detectLocale());
@@ -49,6 +53,8 @@ let debugSequence = 0;
 let zoomPendingSync = 1.0;
 
 const sessionBaselines = new Map<string, { primary: number; weekly?: number }>();
+const soundAlertState = new Set<string>();
+let audioContext: AudioContext | null = null;
 
 function isProviderVisible(provider: string, visibility: Record<string, boolean> | undefined): boolean {
   return visibility?.[provider] !== false;
@@ -81,6 +87,7 @@ async function startApp(): Promise<void> {
 
   try {
     appConfig = await loadAppConfig();
+    appConfig = normalizeAppConfig(appConfig);
     if (appConfig.locale) {
       text = getMessages(appConfig.locale);
     }
@@ -90,6 +97,7 @@ async function startApp(): Promise<void> {
 
   if (latestSnapshot) {
     renderSnapshot(appRoot, latestSnapshot, text, appMetadata, refreshNow, onConfigSave, appConfig, false);
+    updateTraySeverity(latestSnapshot);
   } else {
     renderLoading(appRoot, text, appMetadata, appConfig);
   }
@@ -115,6 +123,10 @@ async function onConfigSave(newConfig: AppConfig): Promise<void> {
   const visibleProviders = latestSnapshot?.providers.map((provider) => provider.provider) ?? [];
   appConfig = {
     ...newConfig,
+    sound_alerts: {
+      enabled: newConfig.sound_alerts?.enabled === true,
+      thresholds: normalizeSoundThresholds(newConfig.sound_alerts?.thresholds)
+    },
     provider_visibility: normalizeProviderVisibility(newConfig.provider_visibility, visibleProviders)
   };
   if (appConfig.locale) {
@@ -125,6 +137,7 @@ async function onConfigSave(newConfig: AppConfig): Promise<void> {
     await saveAppConfig(appConfig);
     if (latestSnapshot) {
       renderSnapshot(appRoot, latestSnapshot, text, appMetadata, refreshNow, onConfigSave, appConfig, false);
+      updateTraySeverity(latestSnapshot);
     }
     void refreshAllProviders(); 
   } catch (error) {
@@ -346,6 +359,158 @@ function persistSnapshot(snapshot: UsageSnapshot): void {
   }
 }
 
+function normalizeAppConfig(config: AppConfig): AppConfig {
+  return {
+    ...config,
+    sound_alerts: {
+      enabled: config.sound_alerts?.enabled === true,
+      thresholds: normalizeSoundThresholds(config.sound_alerts?.thresholds)
+    },
+    provider_visibility: config.provider_visibility ?? {}
+  };
+}
+
+function normalizeSoundThresholds(thresholds: number[] | undefined): number[] {
+  const normalized = (thresholds?.length ? thresholds : [70, 90])
+    .filter((value) => Number.isFinite(value))
+    .map((value) => Math.round(value))
+    .filter((value) => value > 0 && value <= 100);
+  return Array.from(new Set(normalized)).sort((a, b) => a - b);
+}
+
+function updateTraySeverity(snapshot: UsageSnapshot): void {
+  const severity = resolveTraySeverity(snapshot);
+  void setTraySeverity(severity).catch((error) => {
+    console.error("Unable to update tray severity", error);
+  });
+}
+
+function resolveTraySeverity(snapshot: UsageSnapshot): string {
+  let maxUsed: number | null = null;
+
+  snapshot.providers.forEach((provider) => {
+    if (!isProviderVisible(provider.provider, appConfig.provider_visibility) || !provider.usage || provider.stale) {
+      return;
+    }
+
+    const values = [
+      100 - provider.usage.primary.percent_left,
+      provider.usage.weekly ? 100 - provider.usage.weekly.percent_left : null
+    ].filter((value): value is number => typeof value === "number" && Number.isFinite(value));
+
+    values.forEach((value) => {
+      maxUsed = maxUsed === null ? value : Math.max(maxUsed, value);
+    });
+  });
+
+  if (maxUsed === null) {
+    return "neutral";
+  }
+
+  if (maxUsed >= 90) {
+    return "red";
+  }
+  if (maxUsed >= 75) {
+    return "orange";
+  }
+  if (maxUsed >= 45) {
+    return "yellow";
+  }
+  return "green";
+}
+
+function maybePlayUsageAlerts(providerName: string, previousProvider: ProviderUsage | undefined, nextProvider: ProviderUsage): void {
+  if (appConfig.sound_alerts?.enabled !== true || !nextProvider.usage || nextProvider.stale) {
+    return;
+  }
+
+  if (!isProviderVisible(providerName, appConfig.provider_visibility)) {
+    return;
+  }
+
+  const thresholds = normalizeSoundThresholds(appConfig.sound_alerts.thresholds);
+  const limits: Array<{ limit: string; previous: number | null; current: number }> = [
+    {
+      limit: "primary",
+      previous: previousProvider?.usage ? 100 - previousProvider.usage.primary.percent_left : null,
+      current: 100 - nextProvider.usage.primary.percent_left
+    }
+  ];
+
+  if (nextProvider.usage.weekly) {
+    limits.push({
+      limit: "weekly",
+      previous: previousProvider?.usage?.weekly ? 100 - previousProvider.usage.weekly.percent_left : null,
+      current: 100 - nextProvider.usage.weekly.percent_left
+    });
+  }
+
+  limits.forEach(({ limit, previous, current }) => {
+    thresholds.forEach((threshold) => {
+      const key = `${providerName}:${limit}:${threshold}`;
+      if (current < threshold) {
+        soundAlertState.delete(key);
+        return;
+      }
+
+      const crossedUpward = previous !== null && previous < threshold && current >= threshold;
+      if (crossedUpward && !soundAlertState.has(key)) {
+        soundAlertState.add(key);
+        void playThresholdSound(threshold).catch((error) => {
+          console.error("Unable to play threshold sound", error);
+        });
+      } else if (previous === null) {
+        soundAlertState.add(key);
+      }
+    });
+  });
+}
+
+async function playThresholdSound(threshold: number): Promise<void> {
+  const context = getAudioContext();
+  if (!context) {
+    return;
+  }
+
+  if (context.state === "suspended") {
+    await context.resume();
+  }
+
+  const highSeverity = threshold >= 90;
+  playChime(context, context.currentTime, highSeverity ? 740 : 620, highSeverity ? 0.08 : 0.06);
+  if (highSeverity) {
+    playChime(context, context.currentTime + 0.16, 880, 0.07);
+  }
+}
+
+function getAudioContext(): AudioContext | null {
+  if (audioContext) {
+    return audioContext;
+  }
+
+  const AudioContextCtor = window.AudioContext ?? (window as typeof window & { webkitAudioContext?: typeof AudioContext }).webkitAudioContext;
+  if (!AudioContextCtor) {
+    return null;
+  }
+
+  audioContext = new AudioContextCtor();
+  return audioContext;
+}
+
+function playChime(context: AudioContext, start: number, frequency: number, volume: number): void {
+  const oscillator = context.createOscillator();
+  const gain = context.createGain();
+  oscillator.type = "sine";
+  oscillator.frequency.setValueAtTime(frequency, start);
+  gain.gain.setValueAtTime(0.0001, start);
+  gain.gain.exponentialRampToValueAtTime(volume, start + 0.02);
+  gain.gain.exponentialRampToValueAtTime(0.0001, start + 0.42);
+  oscillator.connect(gain);
+  gain.connect(context.destination);
+  oscillator.start(start);
+  oscillator.stop(start + 0.45);
+}
+
 async function refreshAllProviders(): Promise<void> {
   if (refreshInFlight) {
     return;
@@ -368,6 +533,7 @@ async function refreshAllProviders(): Promise<void> {
         updated_at: new Date().toISOString()
       };
       renderSnapshot(appRoot, latestSnapshot, text, appMetadata, refreshNow, onConfigSave, appConfig, false);
+      updateTraySeverity(latestSnapshot);
       queueWindowSync();
       scheduleNextRefresh(appConfig.refresh_interval_min * 60);
       return;
@@ -399,12 +565,16 @@ async function refreshAllProviders(): Promise<void> {
     };
 
     renderSnapshot(appRoot, latestSnapshot, text, appMetadata, refreshNow, onConfigSave, appConfig, true, previousSnapshot);
+    updateTraySeverity(latestSnapshot);
     queueWindowSync();
 
     const updateProviderResult = (providerName: string, nextProvider: ProviderUsage): void => {
       if (!latestSnapshot) {
         return;
       }
+
+      const previousProvider = latestSnapshot.providers.find((provider) => provider.provider === providerName);
+      maybePlayUsageAlerts(providerName, previousProvider, nextProvider);
 
       // Gestionar baseline de la sesion
       if (nextProvider.usage && !nextProvider.stale) {
@@ -442,6 +612,7 @@ async function refreshAllProviders(): Promise<void> {
       };
 
       persistSnapshot(latestSnapshot);
+      updateTraySeverity(latestSnapshot);
       const stillRefreshing = hasPendingRefreshingProviders(latestSnapshot.providers);
       
       // Preparar el snapshot previo virtual basado en el baseline para el calculo del delta
@@ -523,6 +694,7 @@ async function refreshAllProviders(): Promise<void> {
       };
       latestSnapshot = staleSnapshot;
       renderSnapshot(appRoot, staleSnapshot, text, appMetadata, refreshNow, onConfigSave, appConfig, false);
+      updateTraySeverity(staleSnapshot);
       queueWindowSync();
     } else {
       renderError(appRoot, message || text.unableToRefresh, text, appMetadata, appConfig);

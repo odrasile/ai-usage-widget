@@ -195,12 +195,12 @@ body {
   position: fixed;
   z-index: 20;
   display: grid;
-  gap: 12px;
-  min-width: 280px;
+  gap: 10px;
+  min-width: 360px;
   max-width: calc(100vw - 24px);
   max-height: calc(100vh - 24px);
   overflow: auto;
-  padding: 14px 15px;
+  padding: 12px 14px;
   border: 1px solid rgba(255, 255, 255, 0.12);
   border-radius: 8px;
   background: rgba(16, 20, 28, 0.98);
@@ -208,6 +208,15 @@ body {
   text-transform: none;
   letter-spacing: 0;
   cursor: default;
+}
+
+.window-config-popover {
+  width: min(520px, calc(100vw - 24px));
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
+.window-info-popover {
+  min-width: 280px;
 }
 
 .window-info-popover[hidden],
@@ -220,9 +229,13 @@ body {
   color: #ffffff;
   font-size: 13px;
   font-weight: 800;
-  margin-bottom: 4px;
+  margin-bottom: 2px;
   border-bottom: 1px solid rgba(255, 255, 255, 0.1);
-  padding-bottom: 8px;
+  padding-bottom: 7px;
+}
+
+.window-config-popover__title {
+  grid-column: 1 / -1;
 }
 
 .window-info-popover__row,
@@ -230,7 +243,7 @@ body {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  gap: 16px;
+  gap: 10px;
   color: #f5f7fb;
   font-size: 12px;
   font-weight: 500;
@@ -238,8 +251,9 @@ body {
 
 .window-config-popover__group {
   display: flex;
-  flex-direction: row;
-  gap: 8px;
+  grid-column: 1 / -1;
+  align-items: center;
+  gap: 12px;
   color: #f5f7fb;
   font-size: 12px;
   font-weight: 500;
@@ -247,6 +261,8 @@ body {
 
 .window-config-popover__group-title {
   color: #f5f7fb;
+  flex: 0 0 auto;
+  white-space: nowrap;
 }
 
 .window-info-popover__row strong {
@@ -290,10 +306,11 @@ body {
 
 .config-provider-list {
   display: flex;
-  flex-direction: column;
-  gap: 6px;
-  max-height: 132px;
-  overflow: auto;
+  flex: 1 1 auto;
+  flex-flow: row wrap;
+  gap: 6px 10px;
+  max-height: none;
+  overflow: visible;
   padding-right: 2px;
 }
 
@@ -314,8 +331,21 @@ body {
   flex-shrink: 0;
 }
 
+.config-sound-toggle {
+  cursor: pointer;
+}
+
+.config-sound-alerts-input {
+  width: 14px;
+  height: 14px;
+  accent-color: #62b8ff;
+  margin: 0;
+  flex-shrink: 0;
+}
+
 .config-save-button {
-  margin-top: 8px;
+  grid-column: 1 / -1;
+  margin-top: 4px;
   background: #62b8ff;
   color: #ffffff;
   border: 0;
@@ -328,6 +358,18 @@ body {
 
 .config-save-button:hover {
   background: #7ecbff;
+}
+
+@media (max-width: 430px) {
+  .window-config-popover {
+    min-width: min(320px, calc(100vw - 24px));
+    grid-template-columns: 1fr;
+  }
+
+  .window-config-popover__group {
+    align-items: flex-start;
+    flex-direction: column;
+  }
 }
 
 .window-refresh:hover {

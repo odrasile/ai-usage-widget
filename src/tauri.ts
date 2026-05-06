@@ -47,6 +47,10 @@ export async function appendWindowDebugLog(message: string): Promise<void> {
   await invoke("append_window_debug_log", { message });
 }
 
+export async function setTraySeverity(severity: string): Promise<void> {
+  await invoke("set_tray_severity", { severity });
+}
+
 export async function quitApp(): Promise<void> {
   await invoke("quit_app");
 }

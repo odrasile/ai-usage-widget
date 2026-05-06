@@ -12,9 +12,10 @@ use std::thread;
 use std::time::{Duration, Instant};
 use tauri::{
     webview::PageLoadEvent,
+    image::Image,
     menu::{Menu, MenuItem},
     tray::{MouseButton, MouseButtonState, TrayIconBuilder, TrayIconEvent},
-    AppHandle, LogicalPosition, LogicalSize, Manager, WebviewWindowBuilder,
+    AppHandle, LogicalPosition, LogicalSize, Manager, PhysicalPosition, WebviewWindowBuilder,
 };
 
 #[cfg(windows)]
@@ -29,6 +30,7 @@ const CREATE_NO_WINDOW: u32 = 0x08000000;
 #[cfg(windows)]
 const CREATE_NEW_PROCESS_GROUP: u32 = 0x00000200;
 const BACKEND_COMMAND_TIMEOUT: Duration = Duration::from_secs(70);
+const MAIN_TRAY_ID: &str = "main-tray";
 static ACTIVE_BACKEND_CHILDREN: OnceLock<Mutex<HashSet<u32>>> = OnceLock::new();
 
 #[derive(Clone, serde::Serialize, serde::Deserialize)]
@@ -45,7 +47,32 @@ struct AppConfig {
     refresh_interval_min: u64,
     view_mode: String,
     #[serde(default)]
+    locale: Option<String>,
+    #[serde(default)]
     provider_visibility: HashMap<String, bool>,
+    #[serde(default)]
+    sound_alerts: SoundAlertsConfig,
+}
+
+#[derive(Clone, serde::Serialize, serde::Deserialize)]
+struct SoundAlertsConfig {
+    #[serde(default)]
+    enabled: bool,
+    #[serde(default = "default_sound_alert_thresholds")]
+    thresholds: Vec<u64>,
+}
+
+impl Default for SoundAlertsConfig {
+    fn default() -> Self {
+        Self {
+            enabled: false,
+            thresholds: default_sound_alert_thresholds(),
+        }
+    }
+}
+
+fn default_sound_alert_thresholds() -> Vec<u64> {
+    vec![70, 90]
 }
 
 #[tauri::command]
@@ -120,6 +147,30 @@ fn append_window_debug_log(app: AppHandle, message: String) -> Result<(), String
 
     writeln!(file, "{message}")
         .map_err(|error| format!("Unable to append debug log: {error}"))
+}
+
+#[tauri::command]
+fn set_tray_severity(app: AppHandle, severity: String) -> Result<(), String> {
+    let Some(tray) = app.tray_by_id(MAIN_TRAY_ID) else {
+        return Ok(());
+    };
+
+    if severity == "neutral" {
+        return tray
+            .set_icon(app.default_window_icon().cloned())
+            .map_err(|error| format!("Unable to reset tray icon: {error}"));
+    }
+
+    let color = match severity.as_str() {
+        "green" => (79, 201, 120),
+        "yellow" => (229, 216, 92),
+        "orange" => (242, 163, 58),
+        "red" => (223, 63, 63),
+        _ => return Ok(()),
+    };
+
+    tray.set_icon(Some(build_tray_severity_icon(color)))
+        .map_err(|error| format!("Unable to update tray icon: {error}"))
 }
 
 #[tauri::command]
@@ -580,6 +631,99 @@ fn show_main_window(app: &AppHandle) {
     }
 }
 
+fn center_main_window(app: &AppHandle) {
+    if let Some(window) = app.get_webview_window("main") {
+        let _ = window.show();
+
+        let monitor = window
+            .current_monitor()
+            .ok()
+            .flatten()
+            .or_else(|| app.primary_monitor().ok().flatten());
+        let Some(monitor) = monitor else {
+            let _ = window.set_focus();
+            return;
+        };
+
+        let Ok(window_size) = window.outer_size() else {
+            let _ = window.set_focus();
+            return;
+        };
+
+        let monitor_position = monitor.position();
+        let monitor_size = monitor.size();
+        let next_x = monitor_position.x
+            + ((monitor_size.width as i32 - window_size.width as i32) / 2).max(0);
+        let next_y = monitor_position.y
+            + ((monitor_size.height as i32 - window_size.height as i32) / 2).max(0);
+
+        let _ = window.set_position(PhysicalPosition::new(next_x, next_y));
+        persist_centered_window_state(app, next_x, next_y, monitor.scale_factor());
+        let _ = window.set_focus();
+    }
+}
+
+fn persist_centered_window_state(app: &AppHandle, physical_x: i32, physical_y: i32, scale_factor: f64) {
+    let mut state = match load_window_state_from_disk(app) {
+        Ok(Some(state)) => state,
+        _ => WindowState {
+            x: 0.0,
+            y: 0.0,
+            width: 540.0,
+            height: 204.0,
+            zoom: None,
+        },
+    };
+
+    state.x = physical_x as f64 / scale_factor;
+    state.y = physical_y as f64 / scale_factor;
+    let _ = save_window_state_to_disk(app, &state);
+}
+
+fn build_tray_severity_icon(color: (u8, u8, u8)) -> Image<'static> {
+    let size = 32_u32;
+    let mut rgba = vec![0_u8; (size * size * 4) as usize];
+
+    for y in 0..size {
+        for x in 0..size {
+            let index = ((y * size + x) * 4) as usize;
+            let distance_from_center = (((x as f64 - 15.5).powi(2) + (y as f64 - 15.5).powi(2)).sqrt()) as f32;
+            if distance_from_center > 15.0 {
+                continue;
+            }
+
+            let edge_alpha = if distance_from_center > 13.8 { 180 } else { 255 };
+            rgba[index] = color.0;
+            rgba[index + 1] = color.1;
+            rgba[index + 2] = color.2;
+            rgba[index + 3] = edge_alpha;
+        }
+    }
+
+    draw_tray_icon_mark(&mut rgba, size);
+    Image::new_owned(rgba, size, size)
+}
+
+fn draw_tray_icon_mark(rgba: &mut [u8], size: u32) {
+    let dark = (16, 20, 28, 235);
+    fill_rect(rgba, size, 9, 10, 4, 12, dark);
+    fill_rect(rgba, size, 19, 10, 4, 12, dark);
+    fill_rect(rgba, size, 11, 18, 10, 3, dark);
+    fill_rect(rgba, size, 14, 8, 4, 16, dark);
+}
+
+fn fill_rect(rgba: &mut [u8], size: u32, x: u32, y: u32, width: u32, height: u32, color: (u8, u8, u8, u8)) {
+    for row in y..(y + height).min(size) {
+        for col in x..(x + width).min(size) {
+            let index = ((row * size + col) * 4) as usize;
+            rgba[index] = color.0;
+            rgba[index + 1] = color.1;
+            rgba[index + 2] = color.2;
+            rgba[index + 3] = color.3;
+        }
+    }
+}
+
 fn load_window_state_from_disk(app: &AppHandle) -> Result<Option<WindowState>, String> {
     let state_path = window_state_path(app)?;
     if !state_path.exists() {
@@ -617,7 +761,9 @@ fn load_app_config_from_disk(app: &AppHandle) -> Result<AppConfig, String> {
         return Ok(AppConfig {
             refresh_interval_min: 2,
             view_mode: "consumed".to_string(),
+            locale: None,
             provider_visibility: HashMap::new(),
+            sound_alerts: SoundAlertsConfig::default(),
         });
     }
 
@@ -666,16 +812,18 @@ fn window_debug_log_path(app: &AppHandle) -> Result<PathBuf, String> {
 
 fn setup_tray(app: &AppHandle) -> tauri::Result<()> {
     let show = MenuItem::with_id(app, "show", "Show", true, None::<&str>)?;
+    let center = MenuItem::with_id(app, "center", "Center", true, None::<&str>)?;
     let quit = MenuItem::with_id(app, "quit", "Quit", true, None::<&str>)?;
-    let menu = Menu::with_items(app, &[&show, &quit])?;
+    let menu = Menu::with_items(app, &[&show, &center, &quit])?;
     let icon = app.default_window_icon().cloned();
 
-    let mut builder = TrayIconBuilder::new()
+    let mut builder = TrayIconBuilder::with_id(MAIN_TRAY_ID)
         .menu(&menu)
         .tooltip("AI Usage Widget")
         .show_menu_on_left_click(false)
         .on_menu_event(|app, event| match event.id().as_ref() {
             "show" => show_main_window(app),
+            "center" => center_main_window(app),
             "quit" => {
                 kill_active_backend_children();
                 app.exit(0);
@@ -733,6 +881,9 @@ fn create_main_window(app: &AppHandle) -> tauri::Result<()> {
 
 fn main() {
     tauri::Builder::default()
+        .plugin(tauri_plugin_single_instance::init(|app, _args, _cwd| {
+            show_main_window(app);
+        }))
         .setup(|app| {
             setup_tray(app.handle())?;
             create_main_window(app.handle())?;
@@ -748,6 +899,7 @@ fn main() {
             load_app_config,
             save_app_config,
             append_window_debug_log,
+            set_tray_severity,
             quit_app
         ])
         .run(tauri::generate_context!())

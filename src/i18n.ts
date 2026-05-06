@@ -28,6 +28,7 @@ export type Messages = {
   minutes: string;
   displayMode: string;
   providerVisibility: string;
+  soundAlerts: string;
   language: string;
   modeConsumed: string;
   modeFree: string;
@@ -70,6 +71,7 @@ const messages: Record<Locale, Messages> = {
     minutes: "min",
     displayMode: "Display Mode",
     providerVisibility: "Visible providers",
+    soundAlerts: "Sound alerts",
     language: "Language",
     modeConsumed: "Consumed Usage",
     modeFree: "Free Resources",
@@ -110,6 +112,7 @@ const messages: Record<Locale, Messages> = {
     minutes: "min",
     displayMode: "Modo de Visualización",
     providerVisibility: "Proveedores visibles",
+    soundAlerts: "Alertas sonoras",
     language: "Idioma",
     modeConsumed: "Uso Consumido",
     modeFree: "Recursos Libres",

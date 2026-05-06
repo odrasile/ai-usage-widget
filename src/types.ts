@@ -33,6 +33,10 @@ export type AppConfig = {
   view_mode: ViewMode;
   locale?: Locale;
   provider_visibility: Record<string, boolean>;
+  sound_alerts?: {
+    enabled: boolean;
+    thresholds?: number[];
+  };
 };
 
 export type UsageSnapshot = {

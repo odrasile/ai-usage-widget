@@ -204,6 +204,10 @@ function createShell(
               <option value="free">${escapeHtml(text.modeFree)}</option>
             </select>
           </div>
+          <label class="window-config-popover__row config-sound-toggle">
+            <span>${escapeHtml(text.soundAlerts)}</span>
+            <input class="config-sound-alerts-input" type="checkbox">
+          </label>
           ${currentProviders.length > 0 ? `
             <div class="window-config-popover__group">
               <span class="window-config-popover__group-title">${escapeHtml(text.providerVisibility)}</span>
@@ -288,11 +292,13 @@ function createShell(
   if (configButton && configPopover) {
     const refreshInput = configPopover.querySelector<HTMLInputElement>(".config-refresh-input");
     const viewModeSelect = configPopover.querySelector<HTMLSelectElement>(".config-view-mode-select");
+    const soundAlertsInput = configPopover.querySelector<HTMLInputElement>(".config-sound-alerts-input");
     const languageSelect = configPopover.querySelector<HTMLSelectElement>(".config-language-select");
     const saveButton = configPopover.querySelector<HTMLButtonElement>(".config-save-button");
 
     if (refreshInput) refreshInput.value = currentConfig.refresh_interval_min.toString();
     if (viewModeSelect) viewModeSelect.value = currentConfig.view_mode;
+    if (soundAlertsInput) soundAlertsInput.checked = currentConfig.sound_alerts?.enabled === true;
     if (languageSelect) languageSelect.value = currentConfig.locale || text.locale;
 
     const closeConfig = () => {
@@ -321,6 +327,10 @@ function createShell(
           refresh_interval_min: Math.min(60, Math.max(1, parseInt(refreshInput.value, 10) || 2)),
           view_mode: viewModeSelect.value as any,
           locale: languageSelect.value as any,
+          sound_alerts: {
+            enabled: soundAlertsInput?.checked === true,
+            thresholds: currentConfig.sound_alerts?.thresholds ?? [70, 90]
+          },
           provider_visibility: collectProviderVisibility(configPopover, currentConfig.provider_visibility)
         });
         closeConfig();

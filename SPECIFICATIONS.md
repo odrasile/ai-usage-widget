@@ -366,7 +366,7 @@ Floating widget with:
 - manual refresh button for all CLIs
 - close button
 - hide-to-tray button
-- tray icon with Show/Quit options when the platform supports it well
+- tray icon with Show/Center/Quit options when the platform supports it well
 - remembered position, size, and zoom level across launches on all supported platforms, provided those values remain valid
 - safe fallback if the remembered position is off-screen or remembered size is smaller than current content requires, such as centering the window or growing it to the required minimum
 
@@ -389,6 +389,37 @@ The widget includes a settings panel accessible from the header. It is designed 
   - **Smart Positioning**: The panel uses a calculated negative offset relative to the triggering button. This keeps the dialog inside the visible widget bounds regardless of header button position.
   - **Dark Mode Styling**: The app forces a dark theme to avoid inconsistencies with native system themes, especially on Linux/WebKitGTK. It uses solid dark backgrounds (`rgb(16, 20, 28)`), high-contrast text (`#f5f7fb`), and custom select styling with an embedded SVG arrow.
 - **Persistence**: Settings are stored locally and persist between sessions. Opening the panel shows the current loaded values.
+
+### Tray, Visibility, And Recovery
+
+The tray menu must provide a direct recovery path when the widget is outside the visible desktop area after monitor changes.
+
+Recommended tray menu:
+
+- **Show**: Shows and focuses the main widget window without changing its position.
+- **Center**: Shows the main widget window and moves it to the center of a valid monitor.
+- **Quit**: Terminates active backend children and exits the application.
+
+Center behavior:
+
+- If the window is currently associated with a monitor, center it on that monitor.
+- If the saved or current position is off-screen, center it on the primary monitor reported by the operating system.
+- If monitor detection fails, use the current Tauri fallback behavior and keep the window visible.
+- After centering, persist the corrected window state so the next launch does not restore the off-screen coordinates.
+- The operation must preserve the current logical window size and zoom level.
+
+Viability:
+
+- This is low risk and should be implemented in Rust/Tauri window integration.
+- The current app already owns tray creation and persisted window state in `src-tauri/src/main.rs`, so no new dependency is required.
+- Exact "current screen" semantics are platform-dependent when the window is already off-screen. The practical definition is "current monitor if Tauri can identify one, otherwise primary monitor".
+
+Acceptance criteria:
+
+- A hidden or off-screen widget can be recovered from the tray without editing config files.
+- Center works after unplugging a monitor.
+- Center does not resize the widget or reset zoom.
+- Center works even before the frontend has completed a refresh.
 
 ### Scaling And Zoom
 
@@ -536,6 +567,87 @@ To provide feedback on immediate consumption, each bar may show a pulsing delta 
   - In **Free Resources**: the delta occupies the space that has just been emptied to the right of the remaining reserve.
 - **Baseline Update**: If a quota reset is detected because usage drops sharply compared with the baseline, the system automatically updates the baseline to the new minimum so consumption for the new quota starts from zero.
 
+### Dynamic Tray Icon Severity
+
+The tray icon may reflect the worst current usage severity so the user can see quota pressure while the widget is hidden.
+
+Definition:
+
+- Severity is based on the highest consumed percentage among all visible providers and all available limits.
+- Consumed percentage is calculated as `100 - percent_left`.
+- The icon color must follow the same severity scale as the bars:
+  - green for safe usage
+  - yellow for elevated usage
+  - orange for warning usage
+  - red for critical usage
+- If no provider has valid usage data, use the neutral/default icon.
+
+Recommended implementation:
+
+- Keep the bundle/application icon static.
+- Change only the tray icon at runtime.
+- Use a small finite set of pre-rendered tray icons, for example neutral, green, yellow, orange, and red.
+- The frontend should compute or emit the current worst severity after each provider update and call a Tauri command such as `set_tray_severity`.
+- Rust should map the severity to a bundled icon asset and update the tray icon.
+
+Viability:
+
+- This is medium risk but feasible.
+- It avoids drawing image buffers at runtime and avoids extra image-processing dependencies.
+- It is more reliable than trying to mutate the installed application icon, which is cached by operating systems and not meant to represent live state.
+- On macOS, tray/menu-bar icons can be affected by system appearance and template-icon behavior. The app should use non-template colored assets, but exact color fidelity may still be less predictable than on Windows or Linux.
+- On Linux, tray icon behavior depends on the desktop environment and appindicator support; the feature must degrade to the default icon if runtime icon updates are not supported.
+
+Acceptance criteria:
+
+- The tray icon changes to the severity color matching the highest consumed quota visible in the widget.
+- Hidden providers do not influence severity.
+- Missing or unavailable providers do not force a warning color.
+- The icon returns to green or neutral after quota reset or when no usage data is available.
+
+### Quota Alert Sounds
+
+The widget may emit local sounds when usage crosses configured warning thresholds.
+
+Recommended behavior:
+
+- Alerts are disabled by default.
+- The settings panel exposes a toggle for sound alerts.
+- Initial thresholds should be fixed at 70% and 90% consumed usage to keep configuration simple.
+- A provider/limit should trigger a sound only when it crosses a threshold upward, not on every refresh while it remains above that threshold.
+- Reset threshold state when usage drops below the threshold, normally after a quota reset.
+- Do not play sounds for hidden providers.
+- Do not play sounds for unavailable or stale provider data unless a fresh reading crosses a threshold.
+
+Sound design:
+
+- Use short, non-alarming local sounds bundled with the app.
+- Use distinct but related sounds for 70% and 90%, for example a soft single chime for 70% and a slightly firmer double chime for 90%.
+- Keep sounds under one second and avoid speech, long melodies, or harsh alarm tones.
+- Provide a mute switch in the settings panel before enabling the feature by default in any future release.
+
+Recommended implementation:
+
+- Store sound settings in the existing local app config.
+- Use the frontend `Audio` or Web Audio APIs with bundled local audio files in the frontend assets.
+- Track threshold crossings in the frontend scheduler because it already receives incremental provider updates and can compare current readings with previous readings.
+- Keep the Rust backend out of sound playback unless a platform-specific limitation is discovered.
+
+Viability:
+
+- This is medium risk and feasible without external services.
+- It adds local media assets but should not require a new dependency.
+- Browser/webview autoplay restrictions are less problematic for desktop apps, but playback should still be triggered only after app initialization and should fail silently if the platform blocks audio.
+
+Acceptance criteria:
+
+- Sound alerts can be enabled and disabled from the settings panel.
+- No sound is emitted while disabled.
+- Crossing 70% emits the 70% sound once per provider/limit crossing.
+- Crossing 90% emits the 90% sound once per provider/limit crossing.
+- Refreshing repeatedly above a threshold does not loop sounds.
+- Hidden providers do not emit sounds.
+
 ---
 
 ## Refresh
@@ -556,11 +668,37 @@ Optional local file in the repository root:
 
 ```json
 {
-  "refresh_interval_sec": 120
+  "refresh_interval_sec": 120,
+  "sound_alerts_enabled": false
 }
 ```
 
 The value must be clamped between 30 and 120 seconds.
+
+Runtime app configuration stored in the user app data directory may include:
+
+```json
+{
+  "refresh_interval_min": 2,
+  "view_mode": "consumed",
+  "locale": "en",
+  "provider_visibility": {
+    "codex": true,
+    "claude": true,
+    "gemini": true
+  },
+  "sound_alerts": {
+    "enabled": false,
+    "thresholds": [70, 90]
+  }
+}
+```
+
+Rules:
+
+- Keep `sound_alerts.enabled` defaulting to `false`.
+- Keep thresholds fixed at `[70, 90]` unless a later product decision justifies making them editable.
+- Missing config keys must be handled with defaults so older config files remain valid.
 
 ---
 
@@ -627,12 +765,78 @@ Minimum cases:
 13. Spanish/English localization.
 14. Adaptive widget height based on provider count.
 15. Windows/Unix detection compatibility.
+16. Tray Center action recovers an off-screen widget without changing size or zoom.
+17. Dynamic tray icon severity matches the highest visible consumed quota.
+18. Sound alerts trigger once when crossing 70% and 90%, and never while disabled.
+19. Manual update check reports available, unavailable, and failed states without affecting usage refresh.
 
 ---
 
 ## Build
 
 The project must generate a build for the current platform.
+
+### Automatic Updates
+
+The project should support a user-initiated **Check for updates** flow once release automation is ready.
+
+Recommended strategy for this open-source GitHub project:
+
+- Use the official Tauri v2 updater plugin.
+- Publish signed updater artifacts through GitHub Releases.
+- Use a static `latest.json` hosted as a GitHub Release asset, for example `https://github.com/odrasile/ai-usage-widget/releases/latest/download/latest.json`.
+- Generate release artifacts from GitHub Actions using `tauri-apps/tauri-action` or an equivalent explicit CI workflow.
+- Add a **Check for updates** entry in the settings/about panel, not automatic silent updating.
+- Prompt the user before downloading/installing an update.
+- Keep update checks manual by default to respect local-first expectations and avoid background network activity.
+
+Required Tauri changes:
+
+- Add `tauri-plugin-updater` to Rust dependencies.
+- Add `@tauri-apps/plugin-updater` to frontend dependencies.
+- Add `@tauri-apps/plugin-process` if the UI offers restart/relaunch after update installation.
+- Enable updater permissions in `src-tauri/capabilities/default.json`.
+- Configure `bundle.createUpdaterArtifacts = true`.
+- Configure updater `pubkey` and GitHub Release endpoint in `tauri.conf.json`.
+- Store the signing private key only in GitHub Actions secrets, not in the repository.
+
+Release workflow:
+
+- Tag releases with SemVer-compatible tags, for example `v0.2.0`.
+- Build on native runners for Windows, Ubuntu, and macOS.
+- Upload installers, updater archives, signatures, and `latest.json` to the GitHub Release.
+- Keep draft/pre-release behavior explicit. Stable users should only receive stable releases unless a separate pre-release channel is intentionally added.
+- Validate updater artifacts on each platform before publishing a release as stable.
+
+Alternatives considered:
+
+- **Manual GitHub Releases only**: simplest and acceptable for early development, but it does not provide in-app update checks.
+- **Tauri updater with GitHub Releases and static JSON**: recommended balance for this project because it uses existing GitHub infrastructure, supports Windows/Linux/macOS, and avoids operating a custom server.
+- **Custom dynamic update server**: not recommended now; it adds hosting, operations, and security surface without a clear product need.
+- **Platform stores/package managers**: useful later for discoverability, but they increase packaging and review overhead and do not replace the need for GitHub release artifacts during early open-source distribution.
+- **CrabNebula Cloud or another hosted update service**: technically valid, but not necessary for a small open-source app unless release management grows beyond what GitHub Releases can handle.
+
+Network policy:
+
+- Provider usage data must remain strictly local and must not use external APIs.
+- Update checks are a separate, explicit user action and may contact the configured GitHub Release endpoint.
+- The UI must clearly distinguish **Check for updates** from usage refresh.
+
+Viability:
+
+- This is high value but medium/high implementation complexity because it affects signing, CI, release discipline, and installer behavior.
+- It should be implemented after the core widget behavior is stable and versioning/release automation is reliable.
+- Windows updater installation behavior has platform-specific constraints; the app may exit during install.
+- macOS updates require correct signing/notarization decisions for a smooth user experience.
+
+Acceptance criteria:
+
+- The settings/about panel can check whether an update exists.
+- If no update exists, the UI reports that the current version is up to date.
+- If an update exists, the UI shows version and notes before installation.
+- The user must explicitly start installation.
+- Failed update checks do not affect provider usage refresh.
+- Update-related network errors are reported as update errors, not provider errors.
 
 ### Windows
 
@@ -735,5 +939,9 @@ The executable application must:
 6. Refresh automatically.
 7. Allow manual refresh.
 8. Hide/restore from the system tray when the platform supports it well.
-9. Show Spanish or English text based on system language.
-10. Be extensible to other CLIs without rebuilding the foundation.
+9. Recover an off-screen widget with a tray **Center** action.
+10. Optionally show current worst quota severity in the tray icon.
+11. Optionally emit local warning sounds for configured quota thresholds.
+12. Offer a user-initiated **Check for updates** flow when signed GitHub Release artifacts are available.
+13. Show Spanish or English text based on system language.
+14. Be extensible to other CLIs without rebuilding the foundation.
