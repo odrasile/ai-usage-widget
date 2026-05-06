@@ -103,7 +103,7 @@
       </g>
 
       <!-- Footer Inside -->
-      <text x="24" y="440" fill="#8b949e" font-family="Inter, system-ui, sans-serif" font-size="12">Updated 10:21</text>
+      <text x="24" y="440" fill="#8b949e" font-family="Inter, system-ui, sans-serif" font-size="12">Updated 10:21, May 6</text>
       
       <!-- Resize Handle -->
       <path d="M615 440 L625 440 L625 430" stroke="#8b949e" stroke-width="1.5" fill="none"/>

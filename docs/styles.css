@@ -121,6 +121,10 @@ h2 {
   grid-template-columns: repeat(4, minmax(0, 1fr));
 }
 
+.grid.three {
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+}
+
 article {
   min-height: 150px;
   border: 1px solid var(--line);
@@ -199,6 +203,7 @@ code {
   }
 
   .grid.four,
+  .grid.three,
   .table [role="row"] {
     grid-template-columns: 1fr;
   }

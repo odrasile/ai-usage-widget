@@ -613,7 +613,7 @@ Recommended behavior:
 
 - Alerts are disabled by default.
 - The settings panel exposes a toggle for sound alerts.
-- Initial thresholds should be fixed at 70% and 90% consumed usage to keep configuration simple.
+- Initial thresholds should be fixed at 75% and 90% consumed usage to keep configuration simple.
 - A provider/limit should trigger a sound only when it crosses a threshold upward, not on every refresh while it remains above that threshold.
 - Reset threshold state when usage drops below the threshold, normally after a quota reset.
 - Do not play sounds for hidden providers.
@@ -622,7 +622,7 @@ Recommended behavior:
 Sound design:
 
 - Use short, non-alarming local sounds bundled with the app.
-- Use distinct but related sounds for 70% and 90%, for example a soft single chime for 70% and a slightly firmer double chime for 90%.
+- Use distinct but related sounds for 75% and 90%, for example a soft single chime for 75% and a slightly firmer double chime for 90%.
 - Keep sounds under one second and avoid speech, long melodies, or harsh alarm tones.
 - Provide a mute switch in the settings panel before enabling the feature by default in any future release.
 
@@ -643,7 +643,7 @@ Acceptance criteria:
 
 - Sound alerts can be enabled and disabled from the settings panel.
 - No sound is emitted while disabled.
-- Crossing 70% emits the 70% sound once per provider/limit crossing.
+- Crossing 75% emits the 75% sound once per provider/limit crossing.
 - Crossing 90% emits the 90% sound once per provider/limit crossing.
 - Refreshing repeatedly above a threshold does not loop sounds.
 - Hidden providers do not emit sounds.
@@ -689,7 +689,7 @@ Runtime app configuration stored in the user app data directory may include:
   },
   "sound_alerts": {
     "enabled": false,
-    "thresholds": [70, 90]
+    "thresholds": [75, 90]
   }
 }
 ```
@@ -697,7 +697,7 @@ Runtime app configuration stored in the user app data directory may include:
 Rules:
 
 - Keep `sound_alerts.enabled` defaulting to `false`.
-- Keep thresholds fixed at `[70, 90]` unless a later product decision justifies making them editable.
+- Keep thresholds fixed at `[75, 90]` unless a later product decision justifies making them editable.
 - Missing config keys must be handled with defaults so older config files remain valid.
 
 ---
@@ -767,7 +767,7 @@ Minimum cases:
 15. Windows/Unix detection compatibility.
 16. Tray Center action recovers an off-screen widget without changing size or zoom.
 17. Dynamic tray icon severity matches the highest visible consumed quota.
-18. Sound alerts trigger once when crossing 70% and 90%, and never while disabled.
+18. Sound alerts trigger once when crossing 75% and 90%, and never while disabled.
 19. Manual update check reports available, unavailable, and failed states without affecting usage refresh.
 
 ---

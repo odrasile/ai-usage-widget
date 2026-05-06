@@ -72,7 +72,7 @@ impl Default for SoundAlertsConfig {
 }
 
 fn default_sound_alert_thresholds() -> Vec<u64> {
-    vec![70, 90]
+    vec![75, 90]
 }
 
 #[tauri::command]

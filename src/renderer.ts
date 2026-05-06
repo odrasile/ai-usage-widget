@@ -340,7 +340,7 @@ function createShell(
           locale: languageSelect.value as any,
           sound_alerts: {
             enabled: soundAlertsInput?.checked === true,
-            thresholds: currentConfig.sound_alerts?.thresholds ?? [70, 90]
+            thresholds: currentConfig.sound_alerts?.thresholds ?? [75, 90]
           },
           provider_visibility: collectProviderVisibility(configPopover, currentConfig.provider_visibility)
         });

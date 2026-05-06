@@ -6,7 +6,7 @@
     <title>AI Usage Widget - Local Desktop Usage Monitor for Codex, Claude Code, and Gemini CLI</title>
     <meta
       name="description"
-      content="A local-first Tauri desktop widget for monitoring Codex, Claude Code, and Gemini CLI usage without external quota APIs or credentials."
+      content="A local-first Tauri desktop widget for monitoring Codex, Claude Code, and Gemini CLI usage with tray severity, sound alerts, and manual update checks."
     />
     <meta name="robots" content="index,follow" />
     <meta
@@ -16,7 +16,7 @@
     <meta property="og:title" content="AI Usage Widget" />
     <meta
       property="og:description"
-      content="Cross-platform desktop widget for local AI coding CLI usage: Codex, Claude Code, and Gemini CLI."
+      content="Cross-platform desktop widget for local AI coding CLI usage with tray severity, sound alerts, and manual update checks."
     />
     <meta property="og:type" content="website" />
     <meta property="og:url" content="https://odrasile.github.io/ai-usage-widget/" />
@@ -32,7 +32,8 @@
           <h1 id="title">AI Usage Widget</h1>
           <p class="lead">
             A compact always-on-top widget for Codex, Claude Code, and Gemini CLI usage on Windows,
-            Ubuntu Desktop, and macOS.
+            Ubuntu Desktop, and macOS. It stays local, warns before quotas get tight, and can be
+            recovered from the tray when monitor layouts change.
           </p>
           <div class="actions">
             <a class="button primary" href="https://github.com/odrasile/ai-usage-widget">View on GitHub</a>
@@ -64,6 +65,54 @@
         </div>
       </section>
 
+      <section class="band" aria-labelledby="features-title">
+        <h2 id="features-title">What it gives you</h2>
+        <div class="grid three">
+          <article>
+            <h3>Quota pressure at a glance</h3>
+            <p>
+              The tray icon follows the highest visible usage level, moving through green, yellow,
+              orange, and red as consumption rises.
+            </p>
+          </article>
+          <article>
+            <h3>Sound alerts</h3>
+            <p>
+              Optional local chimes warn once when a visible provider crosses the 75% and 90%
+              usage thresholds.
+            </p>
+          </article>
+          <article>
+            <h3>Manual update checks</h3>
+            <p>
+              Check GitHub Releases from the About panel and open the release page to download the
+              installer that matches your platform.
+            </p>
+          </article>
+          <article>
+            <h3>Single instance</h3>
+            <p>
+              Launching the app again focuses the existing widget instead of creating duplicate
+              windows and tray icons.
+            </p>
+          </article>
+          <article>
+            <h3>Tray recovery</h3>
+            <p>
+              A Center action brings the widget back to a visible monitor after docking, undocking,
+              or display changes.
+            </p>
+          </article>
+          <article>
+            <h3>Readable timestamps</h3>
+            <p>
+              Footer and weekly reset labels include compact time and day information, so stale
+              readings are easier to spot.
+            </p>
+          </article>
+        </div>
+      </section>
+
       <section class="band" aria-labelledby="compare-title">
         <h2 id="compare-title">Alternatives / comparison</h2>
         <div class="table" role="table" aria-label="Alternative projects comparison">
@@ -75,22 +124,22 @@
           <div role="row">
             <span role="cell">CodexBar</span>
             <span role="cell">Codex status/menu bar</span>
-            <span role="cell">Adds Claude Code and Gemini in one local desktop widget.</span>
+            <span role="cell">Adds Claude Code and Gemini in one local desktop widget, with tray warnings.</span>
           </div>
           <div role="row">
             <span role="cell">ClaudeBar</span>
             <span role="cell">Claude status/menu bar</span>
-            <span role="cell">Uses provider adapters so the UI is not tied to one CLI.</span>
+            <span role="cell">Uses provider adapters so the UI, alerts, and scheduler are not tied to one CLI.</span>
           </div>
           <div role="row">
             <span role="cell">claude-usage-widget</span>
             <span role="cell">Claude usage widget</span>
-            <span role="cell">Targets three providers and three desktop platforms.</span>
+            <span role="cell">Targets three providers, three desktop platforms, and local-first packaging.</span>
           </div>
           <div role="row">
             <span role="cell">ccusage</span>
             <span role="cell">CLI usage file analysis</span>
-            <span role="cell">Shows current status in a floating widget.</span>
+            <span role="cell">Shows current status in a floating widget with refresh and tray recovery controls.</span>
           </div>
         </div>
       </section>

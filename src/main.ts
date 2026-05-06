@@ -31,7 +31,7 @@ let appConfig: AppConfig = {
   provider_visibility: {},
   sound_alerts: {
     enabled: false,
-    thresholds: [70, 90]
+    thresholds: [75, 90]
   }
 };
 
@@ -371,7 +371,7 @@ function normalizeAppConfig(config: AppConfig): AppConfig {
 }
 
 function normalizeSoundThresholds(thresholds: number[] | undefined): number[] {
-  const normalized = (thresholds?.length ? thresholds : [70, 90])
+  const normalized = (thresholds?.length ? thresholds : [75, 90])
     .filter((value) => Number.isFinite(value))
     .map((value) => Math.round(value))
     .filter((value) => value > 0 && value <= 100);
