@@ -46,6 +46,8 @@ struct WindowState {
 struct AppConfig {
     refresh_interval_min: u64,
     view_mode: String,
+    #[serde(default = "default_transparency_percent")]
+    transparency_percent: u64,
     #[serde(default)]
     locale: Option<String>,
     #[serde(default)]
@@ -73,6 +75,10 @@ impl Default for SoundAlertsConfig {
 
 fn default_sound_alert_thresholds() -> Vec<u64> {
     vec![75, 90]
+}
+
+fn default_transparency_percent() -> u64 {
+    66
 }
 
 #[tauri::command]
@@ -761,6 +767,7 @@ fn load_app_config_from_disk(app: &AppHandle) -> Result<AppConfig, String> {
         return Ok(AppConfig {
             refresh_interval_min: 2,
             view_mode: "consumed".to_string(),
+            transparency_percent: default_transparency_percent(),
             locale: None,
             provider_visibility: HashMap::new(),
             sound_alerts: SoundAlertsConfig::default(),

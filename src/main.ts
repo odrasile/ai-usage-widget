@@ -28,6 +28,7 @@ const appMetadata: AppMetadata = {
 let appConfig: AppConfig = {
   refresh_interval_min: 2,
   view_mode: "consumed",
+  transparency_percent: 66,
   provider_visibility: {},
   sound_alerts: {
     enabled: false,
@@ -56,7 +57,7 @@ const sessionBaselines = new Map<string, { primary: number; weekly?: number }>()
 const soundAlertState = new Set<string>();
 let audioContext: AudioContext | null = null;
 
-const MIN_WINDOW_WIDTH = 320;
+const MIN_WINDOW_WIDTH = 224;
 const MIN_WINDOW_HEIGHT = 132;
 const MAX_WINDOW_WIDTH = 1200;
 const MAX_WINDOW_HEIGHT = 1600;
@@ -89,6 +90,7 @@ if (transparencyProbe) {
 async function startApp(): Promise<void> {
   await logWindowDebug("start", { visualMode });
   appRoot.classList.add(`visual-mode--${visualMode}`);
+  appRoot.classList.add(`platform--${detectPlatform()}`);
 
   try {
     appConfig = await loadAppConfig();
@@ -110,6 +112,7 @@ async function startApp(): Promise<void> {
   await restoreWindowState();
   setupZoomListeners();
   applyZoomStyle();
+  applyTransparencyStyle();
   queueWindowSync();
   setupWindowStatePersistence();
   void applyWindowVisualMode();
@@ -140,6 +143,7 @@ async function onConfigSave(newConfig: AppConfig): Promise<void> {
   
   try {
     await saveAppConfig(appConfig);
+    applyTransparencyStyle();
     if (latestSnapshot) {
       renderSnapshot(appRoot, latestSnapshot, text, appMetadata, refreshNow, onConfigSave, appConfig, false);
       updateTraySeverity(latestSnapshot);
@@ -277,6 +281,20 @@ function detectVisualMode(): "transparent" | "linux-fallback" {
   return userAgent.includes("linux") ? "linux-fallback" : "transparent";
 }
 
+function detectPlatform(): "macos" | "windows" | "linux" | "unknown" {
+  const userAgent = navigator.userAgent.toLowerCase();
+  if (userAgent.includes("mac os") || userAgent.includes("macintosh")) {
+    return "macos";
+  }
+  if (userAgent.includes("windows")) {
+    return "windows";
+  }
+  if (userAgent.includes("linux")) {
+    return "linux";
+  }
+  return "unknown";
+}
+
 function setupZoomListeners(): void {
   window.addEventListener("keydown", (event) => {
     const isModKey = visualMode === "transparent" ? event.metaKey : event.ctrlKey;
@@ -330,6 +348,10 @@ function applyZoomStyle(): void {
   document.documentElement.style.setProperty("--widget-zoom", zoomLevel.toString());
 }
 
+function applyTransparencyStyle(): void {
+  document.documentElement.style.setProperty("--widget-bg-alpha", (normalizeTransparencyPercent(appConfig.transparency_percent) / 100).toString());
+}
+
 function mergeProviderWithPrevious(
   provider: ProviderUsage,
   previousProvider: ProviderUsage | undefined,
@@ -363,12 +385,20 @@ function persistSnapshot(snapshot: UsageSnapshot): void {
 function normalizeAppConfig(config: AppConfig): AppConfig {
   return {
     ...config,
+    transparency_percent: normalizeTransparencyPercent(config.transparency_percent),
     sound_alerts: {
       enabled: config.sound_alerts?.enabled === true,
       thresholds: normalizeSoundThresholds(config.sound_alerts?.thresholds)
     },
     provider_visibility: config.provider_visibility ?? {}
   };
+}
+
+function normalizeTransparencyPercent(value: number | undefined): number {
+  if (value === undefined || !Number.isFinite(value)) {
+    return 66;
+  }
+  return Math.min(90, Math.max(20, Math.round(value)));
 }
 
 function normalizeSoundThresholds(thresholds: number[] | undefined): number[] {

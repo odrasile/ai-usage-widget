@@ -33,6 +33,7 @@ export type Messages = {
   refreshInterval: string;
   minutes: string;
   displayMode: string;
+  transparency: string;
   providerVisibility: string;
   soundAlerts: string;
   language: string;
@@ -82,6 +83,7 @@ const messages: Record<Locale, Messages> = {
     refreshInterval: "Refresh Interval",
     minutes: "min",
     displayMode: "Display Mode",
+    transparency: "Transparency",
     providerVisibility: "Visible providers",
     soundAlerts: "Sound alerts",
     language: "Language",
@@ -129,6 +131,7 @@ const messages: Record<Locale, Messages> = {
     refreshInterval: "Intervalo de Refresco",
     minutes: "min",
     displayMode: "Modo de Visualización",
+    transparency: "Transparencia",
     providerVisibility: "Proveedores visibles",
     soundAlerts: "Alertas sonoras",
     language: "Idioma",

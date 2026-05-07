@@ -31,6 +31,7 @@ export type ViewMode = "consumed" | "free";
 export type AppConfig = {
   refresh_interval_min: number;
   view_mode: ViewMode;
+  transparency_percent: number;
   locale?: Locale;
   provider_visibility: Record<string, boolean>;
   sound_alerts?: {

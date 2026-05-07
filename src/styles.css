@@ -95,6 +95,13 @@ body {
   backdrop-filter: blur(18px);
 }
 
+.platform--macos.visual-mode--transparent .widget {
+  background: rgba(9, 12, 18, var(--widget-bg-alpha, 0.66));
+  border-color: rgba(255, 255, 255, 0.13);
+  -webkit-backdrop-filter: none;
+  backdrop-filter: none;
+}
+
 .widget--refreshing {
   border-color: rgba(98, 184, 255, 0.26);
   box-shadow: 0 14px 38px rgba(0, 0, 0, 0.32), 0 0 0 1px rgba(98, 184, 255, 0.12);
@@ -211,7 +218,7 @@ body {
 }
 
 .window-config-popover {
-  width: min(520px, calc(100vw - 24px));
+  width: min(560px, calc(100vw - 24px));
   grid-template-columns: repeat(2, minmax(0, 1fr));
 }
 
@@ -403,6 +410,31 @@ body {
 
 .config-sound-toggle {
   cursor: pointer;
+}
+
+.config-transparency-row {
+  grid-column: 1 / -1;
+}
+
+.config-transparency-control {
+  display: grid;
+  grid-template-columns: minmax(180px, 1fr) 42px;
+  align-items: center;
+  gap: 8px;
+  min-width: 240px;
+  width: min(300px, 100%);
+}
+
+.config-transparency-input {
+  width: 100%;
+  accent-color: #62b8ff;
+}
+
+.config-transparency-value {
+  color: #f5f7fb;
+  font-size: 12px;
+  font-weight: 700;
+  text-align: right;
 }
 
 .config-sound-alerts-input {

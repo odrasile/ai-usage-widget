@@ -14,6 +14,15 @@ const providerLabels: Record<string, string> = {
 const STATUS_PREVIEW_LENGTH = 56;
 const LATEST_RELEASE_URL = "https://api.github.com/repos/odrasile/ai-usage-widget/releases/latest";
 
+function defaultConfig(): AppConfig {
+  return {
+    refresh_interval_min: 2,
+    view_mode: "consumed",
+    transparency_percent: 66,
+    provider_visibility: {}
+  };
+}
+
 export function renderSnapshot(
   root: HTMLElement,
   snapshot: UsageSnapshot,
@@ -120,7 +129,7 @@ export function setRefreshingState(root: HTMLElement, text: Messages, isRefreshi
 
 export function renderLoading(root: HTMLElement, text: Messages, appMetadata: AppMetadata, currentConfig?: AppConfig): void {
   root.innerHTML = "";
-  const shell = createShell(text, appMetadata, () => {}, () => {}, currentConfig || { refresh_interval_min: 2, view_mode: "consumed", provider_visibility: {} }, true, []);
+  const shell = createShell(text, appMetadata, () => {}, () => {}, currentConfig || defaultConfig(), true, []);
   const body = createBody(false, text);
   const loading = document.createElement("div");
   loading.className = "empty state-message";
@@ -135,7 +144,7 @@ export function renderLoading(root: HTMLElement, text: Messages, appMetadata: Ap
 
 export function renderError(root: HTMLElement, message: string, text: Messages, appMetadata: AppMetadata, currentConfig?: AppConfig): void {
   root.innerHTML = "";
-  const shell = createShell(text, appMetadata, () => {}, () => {}, currentConfig || { refresh_interval_min: 2, view_mode: "consumed", provider_visibility: {} }, false, []);
+  const shell = createShell(text, appMetadata, () => {}, () => {}, currentConfig || defaultConfig(), false, []);
   const body = createBody(false, text);
   const error = document.createElement("p");
   error.className = "empty";
@@ -205,6 +214,13 @@ function createShell(
               <option value="consumed">${escapeHtml(text.modeConsumed)}</option>
               <option value="free">${escapeHtml(text.modeFree)}</option>
             </select>
+          </div>
+          <div class="window-config-popover__row config-transparency-row">
+            <span>${escapeHtml(text.transparency)}</span>
+            <label class="config-transparency-control">
+              <input type="range" class="config-transparency-input" min="20" max="90" step="1" value="${Math.round(currentConfig.transparency_percent)}">
+              <strong class="config-transparency-value">${Math.round(currentConfig.transparency_percent)}%</strong>
+            </label>
           </div>
           <label class="window-config-popover__row config-sound-toggle">
             <span>${escapeHtml(text.soundAlerts)}</span>
@@ -303,14 +319,26 @@ function createShell(
   if (configButton && configPopover) {
     const refreshInput = configPopover.querySelector<HTMLInputElement>(".config-refresh-input");
     const viewModeSelect = configPopover.querySelector<HTMLSelectElement>(".config-view-mode-select");
+    const transparencyInput = configPopover.querySelector<HTMLInputElement>(".config-transparency-input");
+    const transparencyValue = configPopover.querySelector<HTMLElement>(".config-transparency-value");
     const soundAlertsInput = configPopover.querySelector<HTMLInputElement>(".config-sound-alerts-input");
     const languageSelect = configPopover.querySelector<HTMLSelectElement>(".config-language-select");
     const saveButton = configPopover.querySelector<HTMLButtonElement>(".config-save-button");
 
     if (refreshInput) refreshInput.value = currentConfig.refresh_interval_min.toString();
     if (viewModeSelect) viewModeSelect.value = currentConfig.view_mode;
+    if (transparencyInput) transparencyInput.value = Math.round(currentConfig.transparency_percent).toString();
+    if (transparencyValue) transparencyValue.textContent = `${Math.round(currentConfig.transparency_percent)}%`;
     if (soundAlertsInput) soundAlertsInput.checked = currentConfig.sound_alerts?.enabled === true;
     if (languageSelect) languageSelect.value = currentConfig.locale || text.locale;
+
+    transparencyInput?.addEventListener("input", () => {
+      const value = Math.min(90, Math.max(20, parseInt(transparencyInput.value, 10) || 66));
+      if (transparencyValue) {
+        transparencyValue.textContent = `${value}%`;
+      }
+      document.documentElement.style.setProperty("--widget-bg-alpha", (value / 100).toString());
+    });
 
     const closeConfig = () => {
       hideFloatingPopover(configPopover);
@@ -337,6 +365,7 @@ function createShell(
         onConfigSave({
           refresh_interval_min: Math.min(60, Math.max(1, parseInt(refreshInput.value, 10) || 2)),
           view_mode: viewModeSelect.value as any,
+          transparency_percent: Math.min(90, Math.max(20, parseInt(transparencyInput?.value ?? "", 10) || currentConfig.transparency_percent)),
           locale: languageSelect.value as any,
           sound_alerts: {
             enabled: soundAlertsInput?.checked === true,
