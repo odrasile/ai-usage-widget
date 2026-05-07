@@ -16,7 +16,7 @@
         "title": "AI Usage Widget",
         "width": 540,
         "height": 204,
-        "minWidth": 470,
+        "minWidth": 320,
         "minHeight": 132,
         "resizable": true,
         "decorations": false,

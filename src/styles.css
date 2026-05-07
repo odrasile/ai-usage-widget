@@ -120,7 +120,7 @@ body {
   display: flex;
   flex: 1 1 auto;
   min-height: 0;
-  overflow: visible;
+  overflow: hidden;
 }
 
 .widget__body--refreshing .provider-list,
@@ -505,8 +505,14 @@ body {
   gap: 8px;
   margin-top: 10px;
   min-height: 0;
+  overflow: auto;
   padding-right: 2px;
   width: 100%;
+  scrollbar-width: none;
+}
+
+.provider-list::-webkit-scrollbar {
+  display: none;
 }
 
 .provider {
@@ -558,8 +564,8 @@ body {
 .limit-row__meta {
   display: grid;
   align-items: center;
-  grid-template-columns: auto 1fr auto;
-  gap: 10px;
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  gap: 8px;
   color: #c9d1df;
   font-size: 12px;
 }
@@ -707,31 +713,6 @@ body {
 
 .widget__resize:hover span {
   border-color: rgba(255, 255, 255, 0.95);
-}
-
-@media (max-width: 360px) {
-  .widget {
-    padding: 12px 12px 26px;
-  }
-
-  .limit-row__meta {
-    grid-template-columns: 1fr auto;
-    gap: 6px 8px;
-  }
-
-  .limit-row__label {
-    grid-column: 1;
-  }
-
-  .limit-row__reset {
-    grid-column: 1 / -1;
-    text-align: left;
-  }
-
-  .limit-row__meta strong {
-    grid-column: 2;
-    grid-row: 1;
-  }
 }
 
 @keyframes spin {

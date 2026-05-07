@@ -56,6 +56,11 @@ const sessionBaselines = new Map<string, { primary: number; weekly?: number }>()
 const soundAlertState = new Set<string>();
 let audioContext: AudioContext | null = null;
 
+const MIN_WINDOW_WIDTH = 320;
+const MIN_WINDOW_HEIGHT = 132;
+const MAX_WINDOW_WIDTH = 1200;
+const MAX_WINDOW_HEIGHT = 1600;
+
 function isProviderVisible(provider: string, visibility: Record<string, boolean> | undefined): boolean {
   return visibility?.[provider] !== false;
 }
@@ -196,27 +201,19 @@ async function syncWindowLayout(): Promise<void> {
     return;
   }
 
-  const originalHeight = shell.style.height;
-  const originalWidth = shell.style.width;
-  shell.style.height = "auto";
-  shell.style.width = "max-content";
-  
-  const measuredWidth = clampWidth(shell.scrollWidth + 2);
-  const measuredHeight = clampHeight(shell.scrollHeight + 2);
-  
-  shell.style.height = originalHeight;
-  shell.style.width = originalWidth;
+  const minWidth = minWindowWidth();
+  const minHeight = minWindowHeight();
 
   const currentSize = await getCurrentLogicalInnerSize();
-  const targetWidth = resolveTargetWidth(measuredWidth, currentSize.width * zoomPendingSync);
-  const targetHeight = resolveTargetHeight(measuredHeight, currentSize.height * zoomPendingSync);
+  const targetWidth = resolveTargetWidth(minWidth, currentSize.width * zoomPendingSync);
+  const targetHeight = resolveTargetHeight(minHeight, currentSize.height * zoomPendingSync);
   zoomPendingSync = 1.0;
   
-  const minSizeKey = `${measuredWidth}x${measuredHeight}`;
+  const minSizeKey = `${minWidth}x${minHeight}`;
   
   await logWindowDebug("syncWindowLayout:measure", {
-    measuredWidth,
-    measuredHeight,
+    minWidth,
+    minHeight,
     currentWidth: currentSize.width,
     currentHeight: currentSize.height,
     targetWidth,
@@ -226,7 +223,7 @@ async function syncWindowLayout(): Promise<void> {
 
   try {
     if (lastAppliedMinSize !== minSizeKey) {
-      await currentWindow.setMinSize(new LogicalSize(measuredWidth, measuredHeight));
+      await currentWindow.setMinSize(new LogicalSize(minWidth, minHeight));
       lastAppliedMinSize = minSizeKey;
     }
   } catch (error) {
@@ -260,15 +257,19 @@ async function syncWindowLayout(): Promise<void> {
 }
 
 function clampWidth(value: number): number {
-  return Math.min(1200 * zoomLevel, Math.max(320 * zoomLevel, value));
+  return Math.min(MAX_WINDOW_WIDTH * zoomLevel, Math.max(minWindowWidth(), value));
 }
 
 function clampHeight(value: number): number {
-  return Math.min(1600 * zoomLevel, Math.max(100 * zoomLevel, value));
+  return Math.min(MAX_WINDOW_HEIGHT * zoomLevel, Math.max(minWindowHeight(), value));
 }
 
-function baseMinWidth(): number {
-  return (visualMode === "linux-fallback" ? 480 : 320);
+function minWindowWidth(): number {
+  return (visualMode === "linux-fallback" ? 480 : MIN_WINDOW_WIDTH) * zoomLevel;
+}
+
+function minWindowHeight(): number {
+  return MIN_WINDOW_HEIGHT * zoomLevel;
 }
 
 function detectVisualMode(): "transparent" | "linux-fallback" {

@@ -497,7 +497,7 @@ async function checkForUpdates(
       openButton.type = "button";
       openButton.textContent = text.releasePage;
       openButton.addEventListener("click", () => {
-        void openUrl(releaseUrl).catch((error) => {
+        void openUrl(releaseUrl).catch((error: unknown) => {
           const errorMessage = error instanceof Error ? error.message : String(error);
           status.className = "update-check-status update-check-status--error";
           status.textContent = `${text.updateError}: ${errorMessage}. ${releaseUrl}`;
