@@ -21,6 +21,7 @@ dependencies = [
 name = "ai-usage-widget"
 version = "0.1.14"
 dependencies = [
+ "libc",
  "serde",
  "serde_json",
  "tauri",

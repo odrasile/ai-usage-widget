@@ -1,8 +1,8 @@
 #![cfg_attr(windows, windows_subsystem = "windows")]
 
+use std::collections::{HashMap, HashSet};
 use std::env;
 use std::ffi::OsString;
-use std::collections::{HashMap, HashSet};
 use std::fs;
 use std::io::Write;
 use std::path::{Path, PathBuf};
@@ -11,19 +11,19 @@ use std::sync::{Mutex, OnceLock};
 use std::thread;
 use std::time::{Duration, Instant};
 use tauri::{
-    webview::PageLoadEvent,
     image::Image,
     menu::{Menu, MenuItem},
     tray::{MouseButton, MouseButtonState, TrayIconBuilder, TrayIconEvent},
+    webview::PageLoadEvent,
     AppHandle, LogicalPosition, LogicalSize, Manager, PhysicalPosition, WebviewWindowBuilder,
 };
 
-#[cfg(windows)]
-use std::os::windows::process::CommandExt;
-#[cfg(unix)]
-use std::os::unix::process::CommandExt as UnixCommandExt;
 #[cfg(unix)]
 use std::os::unix::fs::PermissionsExt;
+#[cfg(unix)]
+use std::os::unix::process::CommandExt as UnixCommandExt;
+#[cfg(windows)]
+use std::os::windows::process::CommandExt;
 
 #[cfg(windows)]
 const CREATE_NO_WINDOW: u32 = 0x08000000;
@@ -151,8 +151,7 @@ fn append_window_debug_log(app: AppHandle, message: String) -> Result<(), String
         .open(&log_path)
         .map_err(|error| format!("Unable to open debug log: {error}"))?;
 
-    writeln!(file, "{message}")
-        .map_err(|error| format!("Unable to append debug log: {error}"))
+    writeln!(file, "{message}").map_err(|error| format!("Unable to append debug log: {error}"))
 }
 
 #[tauri::command]
@@ -194,7 +193,10 @@ fn run_backend_detect(backend: BackendPaths) -> Result<Vec<String>, String> {
     serde_json::from_value(value).map_err(|error| format!("Invalid detect JSON: {error}"))
 }
 
-fn run_backend_provider_usage(backend: BackendPaths, provider: String) -> Result<serde_json::Value, String> {
+fn run_backend_provider_usage(
+    backend: BackendPaths,
+    provider: String,
+) -> Result<serde_json::Value, String> {
     run_backend_json_command(backend, "provider", Some(provider))
 }
 
@@ -284,14 +286,17 @@ fn run_backend_command_with_timeout(
             Ok(None) => {
                 if start.elapsed() >= timeout {
                     terminate_backend_child(&mut child, child_pid);
-                    let output = child
-                        .wait_with_output()
-                        .map_err(|error| format!("Unable to collect timed-out Node backend output: {error}"))?;
+                    let output = child.wait_with_output().map_err(|error| {
+                        format!("Unable to collect timed-out Node backend output: {error}")
+                    })?;
                     let stderr = String::from_utf8_lossy(&output.stderr).trim().to_string();
                     break Err(if stderr.is_empty() {
                         format!("Node backend timed out after {}s", timeout.as_secs())
                     } else {
-                        format!("Node backend timed out after {}s: {stderr}", timeout.as_secs())
+                        format!(
+                            "Node backend timed out after {}s: {stderr}",
+                            timeout.as_secs()
+                        )
                     });
                 }
                 thread::sleep(Duration::from_millis(50));
@@ -343,19 +348,15 @@ fn terminate_backend_child(child: &mut Child, pid: u32) {
 fn kill_backend_process_tree(pid: u32) {
     #[cfg(unix)]
     {
-        let _ = Command::new("kill")
-            .arg("-TERM")
-            .arg(format!("-{pid}"))
-            .stdout(Stdio::null())
-            .stderr(Stdio::null())
-            .status();
-        thread::sleep(Duration::from_millis(150));
-        let _ = Command::new("kill")
-            .arg("-KILL")
-            .arg(format!("-{pid}"))
-            .stdout(Stdio::null())
-            .stderr(Stdio::null())
-            .status();
+        if unix_process_group_is_owned_by_child(pid) {
+            unsafe {
+                libc::kill(-(pid as libc::pid_t), libc::SIGTERM);
+            }
+            thread::sleep(Duration::from_millis(150));
+            unsafe {
+                libc::kill(-(pid as libc::pid_t), libc::SIGKILL);
+            }
+        }
     }
 
     #[cfg(windows)]
@@ -370,6 +371,13 @@ fn kill_backend_process_tree(pid: u32) {
             .stderr(Stdio::null())
             .status();
     }
+}
+
+#[cfg(unix)]
+fn unix_process_group_is_owned_by_child(pid: u32) -> bool {
+    let pid = pid as libc::pid_t;
+    let process_group_id = unsafe { libc::getpgid(pid) };
+    process_group_id == pid
 }
 
 fn resolve_node_binary(resource_root: &Path) -> Result<OsString, String> {
@@ -568,10 +576,7 @@ fn resolve_backend(app: &AppHandle, project_root: &Path) -> Result<BackendPaths,
 }
 
 fn backend_resource_roots(resource_root: &Path) -> Vec<PathBuf> {
-    vec![
-        resource_root.to_path_buf(),
-        resource_root.join("_up_"),
-    ]
+    vec![resource_root.to_path_buf(), resource_root.join("_up_")]
 }
 
 fn resolve_cli_workspace(app: &AppHandle) -> Result<PathBuf, String> {
@@ -613,7 +618,11 @@ fn append_backend_launch_log(
     }
 
     let log_path = log_dir.join("backend-launch.log");
-    let mut file = match fs::OpenOptions::new().create(true).append(true).open(log_path) {
+    let mut file = match fs::OpenOptions::new()
+        .create(true)
+        .append(true)
+        .open(log_path)
+    {
         Ok(file) => file,
         Err(_) => return,
     };
@@ -669,7 +678,12 @@ fn center_main_window(app: &AppHandle) {
     }
 }
 
-fn persist_centered_window_state(app: &AppHandle, physical_x: i32, physical_y: i32, scale_factor: f64) {
+fn persist_centered_window_state(
+    app: &AppHandle,
+    physical_x: i32,
+    physical_y: i32,
+    scale_factor: f64,
+) {
     let mut state = match load_window_state_from_disk(app) {
         Ok(Some(state)) => state,
         _ => WindowState {
@@ -693,12 +707,17 @@ fn build_tray_severity_icon(color: (u8, u8, u8)) -> Image<'static> {
     for y in 0..size {
         for x in 0..size {
             let index = ((y * size + x) * 4) as usize;
-            let distance_from_center = (((x as f64 - 15.5).powi(2) + (y as f64 - 15.5).powi(2)).sqrt()) as f32;
+            let distance_from_center =
+                (((x as f64 - 15.5).powi(2) + (y as f64 - 15.5).powi(2)).sqrt()) as f32;
             if distance_from_center > 15.0 {
                 continue;
             }
 
-            let edge_alpha = if distance_from_center > 13.8 { 180 } else { 255 };
+            let edge_alpha = if distance_from_center > 13.8 {
+                180
+            } else {
+                255
+            };
             rgba[index] = color.0;
             rgba[index + 1] = color.1;
             rgba[index + 2] = color.2;
@@ -718,7 +737,15 @@ fn draw_tray_icon_mark(rgba: &mut [u8], size: u32) {
     fill_rect(rgba, size, 14, 8, 4, 16, dark);
 }
 
-fn fill_rect(rgba: &mut [u8], size: u32, x: u32, y: u32, width: u32, height: u32, color: (u8, u8, u8, u8)) {
+fn fill_rect(
+    rgba: &mut [u8],
+    size: u32,
+    x: u32,
+    y: u32,
+    width: u32,
+    height: u32,
+    color: (u8, u8, u8, u8),
+) {
     for row in y..(y + height).min(size) {
         for col in x..(x + width).min(size) {
             let index = ((row * size + col) * 4) as usize;

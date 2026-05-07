@@ -1,3 +1,5 @@
+import { readFileSync } from "node:fs";
+
 export function closePtyChild(child, eventLog, options = {}) {
   const exitInput = options.exitInput ?? "";
   const exitGraceMs = options.exitGraceMs ?? options.killDelayMs ?? 250;
@@ -79,14 +81,18 @@ function terminatePtyTree(child, eventLog, timestamp, signal) {
   const pid = Number(child.pid);
 
   if (Number.isInteger(pid) && pid > 0) {
-    try {
-      eventLog.push(`${timestamp()} KILL process-group ${pid} ${signal}`);
-      process.kill(-pid, signal);
-      return;
-    } catch (error) {
-      if (!isMissingProcessError(error)) {
-        eventLog.push(`${timestamp()} KILL process-group-failed ${pid} ${signal}: ${formatError(error)}`);
+    if (isOwnProcessGroup(pid)) {
+      try {
+        eventLog.push(`${timestamp()} KILL process-group ${pid} ${signal}`);
+        process.kill(-pid, signal);
+        return;
+      } catch (error) {
+        if (!isMissingProcessError(error)) {
+          eventLog.push(`${timestamp()} KILL process-group-failed ${pid} ${signal}: ${formatError(error)}`);
+        }
       }
+    } else {
+      eventLog.push(`${timestamp()} SKIP process-group ${pid} ${signal}: pid is not its own process group`);
     }
   }
 
@@ -109,6 +115,26 @@ function waitForExitOrTimeout(exitPromise, timeoutMs) {
 
 function isMissingProcessError(error) {
   return error?.code === "ESRCH";
+}
+
+function isOwnProcessGroup(pid) {
+  if (process.platform !== "linux") {
+    return false;
+  }
+
+  try {
+    const stat = readFileSync(`/proc/${pid}/stat`, "utf8");
+    const endOfCommand = stat.lastIndexOf(")");
+    if (endOfCommand === -1) {
+      return false;
+    }
+
+    const fields = stat.slice(endOfCommand + 2).trim().split(/\s+/);
+    const processGroupId = Number(fields[2]);
+    return Number.isInteger(processGroupId) && processGroupId === pid;
+  } catch {
+    return false;
+  }
 }
 
 function formatError(error) {
