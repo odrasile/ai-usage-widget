@@ -277,8 +277,7 @@ function minWindowHeight(): number {
 }
 
 function detectVisualMode(): "transparent" | "linux-fallback" {
-  const userAgent = navigator.userAgent.toLowerCase();
-  return userAgent.includes("linux") ? "linux-fallback" : "transparent";
+  return "transparent";
 }
 
 function detectPlatform(): "macos" | "windows" | "linux" | "unknown" {
