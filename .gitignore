@@ -2,6 +2,9 @@ node_modules/
 dist/
 src-tauri/target/
 src-tauri/gen/
+src-tauri/generated/*
+!src-tauri/generated/resources/
+!src-tauri/generated/resources/.gitkeep
 *.log
 .DS_Store
 config.json
