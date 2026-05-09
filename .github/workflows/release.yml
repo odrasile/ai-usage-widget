@@ -12,6 +12,7 @@ jobs:
   build:
     name: Build installers (${{ matrix.name }})
     runs-on: ${{ matrix.os }}
+    environment: macos-signing
 
     strategy:
       fail-fast: false
