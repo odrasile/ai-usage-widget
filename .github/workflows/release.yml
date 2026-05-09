@@ -3,7 +3,7 @@ name: Release
 on:
   push:
     tags:
-      - "v*"
+      - "v*.*.*"
 
 permissions:
   contents: write
@@ -26,9 +26,11 @@ jobs:
           - name: macos-arm64
             os: macos-15
             arch: arm64
+            target: aarch64-apple-darwin
           - name: macos-intel
             os: macos-15-intel
             arch: x64
+            target: x86_64-apple-darwin
 
     steps:
       - name: Checkout
@@ -42,6 +44,10 @@ jobs:
 
       - name: Setup Rust
         uses: dtolnay/rust-toolchain@stable
+
+      - name: Add macOS Rust target
+        if: runner.os == 'macOS'
+        run: rustup target add ${{ matrix.target }}
 
       - name: Install Linux dependencies
         if: runner.os == 'Linux'
@@ -68,19 +74,33 @@ jobs:
         run: npm run build
 
       - name: Build Tauri bundle
+        if: runner.os != 'macOS'
         run: npm run tauri:build
+
+      - name: Build signed and notarized macOS bundle
+        if: runner.os == 'macOS'
+        run: npm run tauri:build -- --target ${{ matrix.target }}
+        env:
+          CI: true
+          APPLE_CERTIFICATE: ${{ secrets.APPLE_CERTIFICATE }}
+          APPLE_CERTIFICATE_PASSWORD: ${{ secrets.APPLE_CERTIFICATE_PASSWORD }}
+          APPLE_SIGNING_IDENTITY: ${{ secrets.APPLE_SIGNING_IDENTITY }}
+          APPLE_ID: ${{ secrets.APPLE_ID }}
+          APPLE_PASSWORD: ${{ secrets.APPLE_PASSWORD }}
+          APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
 
       - name: Add macOS architecture suffix
         if: runner.os == 'macOS'
         env:
           ARCH_SUFFIX: ${{ matrix.arch }}
+          TARGET_TRIPLE: ${{ matrix.target }}
         run: |
-          for file in src-tauri/target/release/bundle/dmg/*.dmg; do
+          for file in src-tauri/target/${TARGET_TRIPLE}/release/bundle/dmg/*.dmg; do
             [ -e "$file" ] || continue
             mv "$file" "${file%.dmg}-${ARCH_SUFFIX}.dmg"
           done
 
-          for file in src-tauri/target/release/bundle/macos/*.app.tar.gz; do
+          for file in src-tauri/target/${TARGET_TRIPLE}/release/bundle/macos/*.app.tar.gz; do
             [ -e "$file" ] || continue
             mv "$file" "${file%.app.tar.gz}-${ARCH_SUFFIX}.app.tar.gz"
           done
@@ -96,4 +116,6 @@ jobs:
             src-tauri/target/release/bundle/appimage/*.AppImage
             src-tauri/target/release/bundle/dmg/*.dmg
             src-tauri/target/release/bundle/macos/*.app.tar.gz
+            src-tauri/target/*/release/bundle/dmg/*.dmg
+            src-tauri/target/*/release/bundle/macos/*.app.tar.gz
           fail_on_unmatched_files: false
