@@ -21,7 +21,15 @@ const AUTH_REQUIRED_PATTERNS = [
   /authentication required/i,
   /expired auth/i,
   /waiting for authentication/i,
-  /authenticate to continue/i
+  /authenticate to continue/i,
+  /\/login\s+to\s+activate/i,
+  /use\s+your\s+existing\s+claude\s+max\s+plan/i
+];
+
+const MCP_AUTH_REQUIRED_PATTERNS = [
+  /\bmcp\s+server(?:s)?\s+needs?\s+auth/i,
+  /\bmcp\s+auth(?:entication)?\s+required/i,
+  /\/mcp\b.*\bauth/i
 ];
 
 const PROVIDER_LABELS = {
@@ -52,6 +60,13 @@ export function classifyCliFailure(provider, message = "") {
     return {
       kind: "auth_required",
       status: `${label} detected; login required`
+    };
+  }
+
+  if (matchesAny(normalized, MCP_AUTH_REQUIRED_PATTERNS)) {
+    return {
+      kind: "mcp_auth_required",
+      status: `${label} detected; MCP auth required`
     };
   }
 

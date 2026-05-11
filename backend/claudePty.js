@@ -19,6 +19,7 @@ export function runClaudeUsagePty(options = {}) {
     let usageAttempted = false;
     let usageCommandCount = 0;
     let dismissedDialogHandled = false;
+    let trustPromptAccepted = false;
     const eventLog = [];
     let child;
 
@@ -85,13 +86,14 @@ export function runClaudeUsagePty(options = {}) {
     };
 
     const timer = setTimeout(() => finish(false), timeoutMs);
-    const usageRetryTimers = [2_500, 5_000, 8_500].map((delay) => setTimeout(() => {
+    const usageRetryTimers = [2_500, 5_000, 8_500, 13_000].map((delay) => setTimeout(() => {
       if (settled || hasClaudeUsage(output)) {
         return;
       }
 
-      usageAttempted = sendUsageCommand(child, usageCommandCount, eventLog) || usageAttempted;
-      if (usageAttempted) {
+      const sent = trySendUsageCommand(child, output, usageCommandCount, eventLog);
+      usageAttempted = sent || usageAttempted;
+      if (sent) {
         usageCommandCount += 1;
       }
     }, delay));
@@ -100,9 +102,21 @@ export function runClaudeUsagePty(options = {}) {
       eventLog.push(`${timestamp()} DATA ${truncate(chunk.replace(/\r/g, "\\r").replace(/\n/g, "\\n"), 220)}`);
       output += chunk;
 
+      if (!trustPromptAccepted && isTrustPrompt(output)) {
+        trustPromptAccepted = true;
+        eventLog.push(`${timestamp()} EVENT accept-trust-prompt`);
+        try {
+          child.write("\r");
+        } catch {
+          // Let the normal timeout path report the failure.
+        }
+        return;
+      }
+
       if (isReadyForUsageCommand(output) && !hasClaudeUsage(output) && usageCommandCount === 0) {
-        usageAttempted = sendUsageCommand(child, usageCommandCount, eventLog) || usageAttempted;
-        if (usageAttempted) {
+        const sent = trySendUsageCommand(child, output, usageCommandCount, eventLog);
+        usageAttempted = sent || usageAttempted;
+        if (sent) {
           usageCommandCount += 1;
         }
       }
@@ -115,8 +129,9 @@ export function runClaudeUsagePty(options = {}) {
             return;
           }
 
-          usageAttempted = sendUsageCommand(child, usageCommandCount, eventLog) || usageAttempted;
-          if (usageAttempted) {
+          const sent = trySendUsageCommand(child, output, usageCommandCount, eventLog);
+          usageAttempted = sent || usageAttempted;
+          if (sent) {
             usageCommandCount += 1;
           }
         }, 250);
@@ -136,9 +151,21 @@ export function runClaudeUsagePty(options = {}) {
 }
 
 function isReadyForUsageCommand(output) {
-  return /Status\s+Config\s+Usage\s+Stats/i.test(output)
-    || /Esc\s+to\s+cancel/i.test(output)
-    || />\s*$/m.test(output);
+  const cleaned = cleanTerminalOutput(output);
+  if (isTrustPrompt(output)) {
+    return false;
+  }
+
+  return /Status\s+Config\s+Usage\s+Stats/i.test(cleaned)
+    || (/Claude\s*Code/i.test(cleaned) && /\?\s*for\s*shortcuts/i.test(cleaned))
+    || /❯\s*(?:Try|$)/i.test(cleaned)
+    || />\s*(?:Try|$)/i.test(cleaned);
+}
+
+function isTrustPrompt(output) {
+  const cleaned = cleanTerminalOutput(output);
+  return /do\s+you\s+trust\s+the\s+files\s+in\s+this\s+folder/i.test(cleaned)
+    || /enter\s+to\s+confirm\s+.*esc\s+to\s+cancel/i.test(cleaned);
 }
 
 function hasClaudeUsage(output) {
@@ -156,8 +183,8 @@ function cleanTerminalOutput(value) {
     .trim();
 }
 
-function sendUsageCommand(child, usageCommandCount, eventLog) {
-  if (usageCommandCount >= 2) {
+function trySendUsageCommand(child, output, usageCommandCount, eventLog) {
+  if (usageCommandCount >= 3 || !isReadyForUsageCommand(output)) {
     return false;
   }
 
