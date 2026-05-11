@@ -25,3 +25,15 @@ test("classifies login requirement", () => {
   assert.equal(failure.kind, "auth_required");
   assert.equal(failure.status, "Codex CLI detected; login required");
 });
+
+test("classifies claude max activation prompt as login requirement", () => {
+  const failure = classifyCliFailure("claude", "Use your existing Claude Max plan with Claude Code · /login to activate");
+  assert.equal(failure.kind, "auth_required");
+  assert.equal(failure.status, "Claude Code CLI detected; login required");
+});
+
+test("classifies claude mcp auth prompt separately", () => {
+  const failure = classifyCliFailure("claude", "1 MCP server needs auth · /mcp");
+  assert.equal(failure.kind, "mcp_auth_required");
+  assert.equal(failure.status, "Claude Code CLI detected; MCP auth required");
+});
