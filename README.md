@@ -16,6 +16,8 @@ Supported providers:
 - Claude Code
 - Gemini CLI
 
+Cursor token usage is not supported.
+
 The app does not call external APIs to retrieve quota data. It only talks to local command-line tools installed on your machine.
 
 ## Features
