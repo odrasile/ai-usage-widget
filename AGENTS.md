@@ -88,6 +88,8 @@ Do not use `codex exec /status` for the widget. It creates a non-interactive ses
 3. Send `/usage` through stdin or PTY input depending on the adapter path.
 4. Parse remaining requests, total requests, and reset.
 
+If Claude reports `/usage is only available for subscription plans`, the widget must not show a generic parser failure. It must show a clear provider status indicating that a subscription plan is required.
+
 Calculation:
 
 ```text
@@ -160,6 +162,7 @@ For each provider:
 - Show the weekly bar if available.
 - Show percentage and reset for each bar.
 - Match percentage text color to the corresponding bar color.
+- Provider error/status messages, including log paths, must be rendered as one untruncated line so users can enlarge the widget and copy the full log path.
 
 Recommended color scale:
 

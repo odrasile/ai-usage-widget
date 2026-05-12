@@ -602,6 +602,12 @@ body {
   font-size: 12px;
 }
 
+.limit-row__meta--status {
+  grid-template-columns: auto max-content;
+  min-width: 100%;
+  width: max-content;
+}
+
 .limit-row__label {
   color: #e7edf7;
   font-weight: 700;
@@ -614,6 +620,13 @@ body {
   text-align: center;
   text-overflow: ellipsis;
   white-space: nowrap;
+}
+
+.limit-row__reset--status {
+  overflow: visible;
+  text-align: left;
+  text-overflow: clip;
+  user-select: text;
 }
 
 .limit-row__meta strong {
@@ -679,6 +692,9 @@ body {
   align-items: center;
   color: #b8bec9;
   font-size: 11px;
+  min-width: max-content;
+  user-select: text;
+  white-space: nowrap;
 }
 
 .provider__warning-icon {
@@ -691,6 +707,10 @@ body {
   color: #f2a33a;
   font-size: 11px;
   font-weight: 900;
+}
+
+.provider__warning-text {
+  white-space: nowrap;
 }
 
 .empty {
