@@ -37,3 +37,9 @@ test("classifies claude mcp auth prompt separately", () => {
   assert.equal(failure.kind, "mcp_auth_required");
   assert.equal(failure.status, "Claude Code CLI detected; MCP auth required");
 });
+
+test("classifies claude usage subscription requirement separately", () => {
+  const failure = classifyCliFailure("claude", "/usage is only available for subscription plans");
+  assert.equal(failure.kind, "subscription_required");
+  assert.equal(failure.status, "Claude Code CLI detected; subscription plan required");
+});

@@ -234,6 +234,7 @@ Compatibility:
 
 - Also support older formats based on `remaining/total` if they appear.
 - Tolerate cleaned output where words are joined, for example `Currentsession`, `Currentweek`, `0%used`, and `Resets2:20pm`.
+- If Claude reports `/usage is only available for subscription plans`, report a specific subscription-plan-required status instead of a generic unexpected-output or parser failure.
 - Final visible output must follow the same visual normalization as Codex:
   - primary: `14:49`
   - weekly: `9:24, 29 Apr`
@@ -467,6 +468,7 @@ Provider content:
 - weekly bar if available
 - remaining percentage
 - reset time
+- provider status or error text, including log paths, rendered as one untruncated line so enlarging the widget exposes the full text for copying
 
 ---
 

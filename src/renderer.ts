@@ -11,7 +11,6 @@ const providerLabels: Record<string, string> = {
   claude: "Claude Code",
   gemini: "Gemini"
 };
-const STATUS_PREVIEW_LENGTH = 56;
 const LATEST_RELEASE_URL = "https://api.github.com/repos/odrasile/ai-usage-widget/releases/latest";
 
 function defaultConfig(): AppConfig {
@@ -593,7 +592,6 @@ function renderProvider(provider: ProviderUsage, text: Messages, viewMode: ViewM
 
   if (!provider.usage) {
     const status = provider.status ?? text.unavailable;
-    const statusPreview = truncateStatus(status);
     const isGemini = provider.provider === "gemini";
     const label5h = isGemini ? "24h" : text.limit5h;
     
@@ -603,9 +601,9 @@ function renderProvider(provider: ProviderUsage, text: Messages, viewMode: ViewM
         <span>--</span>
       </div>
       <div class="limit-row">
-        <div class="limit-row__meta">
+        <div class="limit-row__meta limit-row__meta--status">
           <span class="limit-row__label">${escapeHtml(label5h)}</span>
-          <span class="limit-row__reset" title="${escapeHtml(status)}">${escapeHtml(statusPreview)}</span>
+          <span class="limit-row__reset limit-row__reset--status" title="${escapeHtml(status)}">${escapeHtml(formatStatus(status))}</span>
         </div>
         <div class="meter meter--empty" aria-label="Usage unavailable">
           <span class="meter__solid" style="width: 0%"></span>
@@ -632,7 +630,7 @@ function renderProvider(provider: ProviderUsage, text: Messages, viewMode: ViewM
   }
 
   const warning = provider.stale && provider.status
-    ? `<div class="provider__warning" title="${escapeHtml(provider.status)}"><span class="provider__warning-icon">!</span><span>${escapeHtml(truncateStatus(provider.status))}</span></div>`
+    ? `<div class="provider__warning" title="${escapeHtml(provider.status)}"><span class="provider__warning-icon">!</span><span class="provider__warning-text">${escapeHtml(formatStatus(provider.status))}</span></div>`
     : "";
 
   item.innerHTML = `
@@ -778,13 +776,8 @@ function formatUpdatedAt(value: string, locale: "en" | "es"): string {
   return `${time}, ${day}`;
 }
 
-function truncateStatus(value: string): string {
-  const normalized = value.replace(/\s+/g, " ").trim();
-  if (normalized.length <= STATUS_PREVIEW_LENGTH) {
-    return normalized;
-  }
-
-  return `${normalized.slice(0, STATUS_PREVIEW_LENGTH - 1).trimEnd()}...`;
+function formatStatus(value: string): string {
+  return value.replace(/\s+/g, " ").trim();
 }
 
 function escapeHtml(value: string): string {

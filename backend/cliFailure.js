@@ -32,6 +32,11 @@ const MCP_AUTH_REQUIRED_PATTERNS = [
   /\/mcp\b.*\bauth/i
 ];
 
+const SUBSCRIPTION_REQUIRED_PATTERNS = [
+  /\/usage\s+is\s+only\s+available\s+for\s+subscription\s+plans/i,
+  /usage\s+is\s+only\s+available\s+for\s+subscription\s+plans/i
+];
+
 const PROVIDER_LABELS = {
   codex: "Codex CLI",
   claude: "Claude Code CLI",
@@ -67,6 +72,13 @@ export function classifyCliFailure(provider, message = "") {
     return {
       kind: "mcp_auth_required",
       status: `${label} detected; MCP auth required`
+    };
+  }
+
+  if (matchesAny(normalized, SUBSCRIPTION_REQUIRED_PATTERNS)) {
+    return {
+      kind: "subscription_required",
+      status: `${label} detected; subscription plan required`
     };
   }
 
