@@ -4,6 +4,7 @@ import { classifyCliFailure } from "../cliFailure.js";
 import { parseGeminiUsage } from "../parser.js";
 import { execFileWithTimeout } from "../executor.js";
 import { isWindows } from "../platform.js";
+import { readyProvider, stateFromFailureKind, unavailableProvider } from "../providerState.js";
 
 export async function getGeminiUsage(options = {}) {
   if (!isWindows()) {
@@ -20,7 +21,7 @@ export async function getGeminiUsage(options = {}) {
   if (nonInteractiveResult.ok || /exhausted/i.test(nonInteractiveResult.stdout || nonInteractiveResult.stderr)) {
     const usage = parseGeminiUsage(nonInteractiveResult.stdout + (nonInteractiveResult.stderr || ""));
     if (usage) {
-      return { provider: "gemini", available: true, usage };
+      return readyProvider("gemini", usage);
     }
   }
 
@@ -30,40 +31,52 @@ export async function getGeminiUsage(options = {}) {
 
 async function getGeminiUsageFromPty(options = {}) {
   const result = await runGeminiUsagePty({ timeoutMs: 35_000, authTimeoutMs: 50_000, cwd: options.cwd });
-  const logSuffix = result.debugLogPath ? ` Log: ${result.debugLogPath}` : "";
 
   if (!result.ok) {
-    return {
-      provider: "gemini",
-      available: false,
-      usage: null,
-      status: `${summarizeGeminiFailure(result.stderr || result.stdout)}${logSuffix}`
-    };
+    return summarizeGeminiFailure(result.stderr || result.stdout, result.debugLogPath);
   }
 
   const usage = parseGeminiUsage(result.stdout);
-  return usage ? { provider: "gemini", available: true, usage } : {
-    provider: "gemini",
-    available: false,
-    usage: null,
-    status: `${summarizeGeminiFailure(result.stdout)}${logSuffix}`
-  };
+  return usage ? readyProvider("gemini", usage) : summarizeGeminiFailure(result.stdout, result.debugLogPath);
 }
 
-function summarizeGeminiFailure(message = "") {
+function summarizeGeminiFailure(message = "", logPath = "") {
   const normalized = String(message).trim();
   if (!normalized) {
-    return "Gemini CLI detected; /usage unavailable";
+    return unavailableProvider("gemini", "no_usage_capability", {
+      status: "Gemini CLI detected; /usage unavailable",
+      logPath
+    });
   }
 
   const classified = classifyCliFailure("gemini", normalized);
   if (classified.kind !== "unavailable") {
-    return classified.status;
+    return unavailableProvider("gemini", stateFromFailureKind(classified.kind), {
+      status: classified.status,
+      detail: normalized,
+      logPath
+    });
   }
 
   if (/no output captured/i.test(normalized)) {
-    return "Gemini CLI detected; no /usage output";
+    return unavailableProvider("gemini", "no_output", {
+      status: "Gemini CLI detected; no /usage output",
+      detail: normalized,
+      logPath
+    });
   }
 
-  return "Gemini CLI detected; unexpected output";
+  if (/quota\s+not\s+visible|prompt\s+ready/i.test(normalized)) {
+    return unavailableProvider("gemini", "no_usage_capability", {
+      status: "Gemini CLI detected; quota not visible",
+      detail: normalized,
+      logPath
+    });
+  }
+
+  return unavailableProvider("gemini", "parse_error", {
+    status: "Gemini CLI detected; unexpected output",
+    detail: normalized,
+    logPath
+  });
 }

@@ -12,6 +12,9 @@ export type Messages = {
   build: string;
   checkForUpdates: string;
   checkingUpdates: string;
+  copiedLog: string;
+  copyLog: string;
+  copyLogFailed: string;
   updateAvailable: string;
   updateCurrent: string;
   updateError: string;
@@ -62,6 +65,9 @@ const messages: Record<Locale, Messages> = {
     build: "Build",
     checkForUpdates: "Check for updates",
     checkingUpdates: "Checking...",
+    copiedLog: "Copied",
+    copyLog: "Copy log",
+    copyLogFailed: "Unable to copy log",
     updateAvailable: "Version {version} available",
     updateCurrent: "You are up to date",
     updateError: "Unable to check updates",
@@ -110,6 +116,9 @@ const messages: Record<Locale, Messages> = {
     build: "Compilacion",
     checkForUpdates: "Buscar actualizaciones",
     checkingUpdates: "Comprobando...",
+    copiedLog: "Copiado",
+    copyLog: "Copiar log",
+    copyLogFailed: "No se pudo copiar el log",
     updateAvailable: "Version {version} disponible",
     updateCurrent: "Ya tienes la ultima version",
     updateError: "No se pudieron comprobar actualizaciones",

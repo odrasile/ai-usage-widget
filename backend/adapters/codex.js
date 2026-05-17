@@ -5,7 +5,6 @@ import { parseCodexStatus } from "../parser.js";
 
 export async function getCodexUsage(options = {}) {
   const result = await runCodexStatusPty({ timeoutMs: 35_000, cwd: options.cwd });
-  const logSuffix = result.debugLogPath ? ` Log: ${result.debugLogPath}` : "";
   const parsedFromOutput = parseCodexStatus(result.stdout);
   if (parsedFromOutput) {
     return { provider: "codex", available: true, usage: parsedFromOutput };
@@ -18,7 +17,8 @@ export async function getCodexUsage(options = {}) {
         provider: "codex",
         available: false,
         usage: null,
-        status: `${failure.status}${logSuffix}`
+        status: failure.status,
+        ...(result.debugLogPath ? { log_path: result.debugLogPath } : {})
       };
     }
 
@@ -36,7 +36,8 @@ export async function getCodexUsage(options = {}) {
       provider: "codex",
       available: false,
       usage: null,
-      status: `${loginStatus}; /status unavailable${logSuffix}`
+      status: `${loginStatus}; /status unavailable`,
+      ...(result.debugLogPath ? { log_path: result.debugLogPath } : {})
     };
   }
 
@@ -44,6 +45,7 @@ export async function getCodexUsage(options = {}) {
     provider: "codex",
     available: false,
     usage: null,
-    status: `${classifyCliFailure("codex", result.stdout).status}${logSuffix}`
+    status: classifyCliFailure("codex", result.stdout).status,
+    ...(result.debugLogPath ? { log_path: result.debugLogPath } : {})
   };
 }

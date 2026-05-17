@@ -155,6 +155,44 @@ fn append_window_debug_log(app: AppHandle, message: String) -> Result<(), String
 }
 
 #[tauri::command]
+fn read_provider_log_file(app: AppHandle, path: String) -> Result<String, String> {
+    let requested_path = PathBuf::from(path);
+    let canonical_path = fs::canonicalize(&requested_path)
+        .map_err(|error| format!("Unable to resolve log path: {error}"))?;
+
+    let temp_log_dir_path = env::temp_dir().join("ai-usage-widget");
+    fs::create_dir_all(&temp_log_dir_path)
+        .map_err(|error| format!("Unable to create temp log directory: {error}"))?;
+    let temp_log_dir = fs::canonicalize(&temp_log_dir_path)
+        .map_err(|error| format!("Unable to resolve temp log directory: {error}"))?;
+    let app_data_dir = app
+        .path()
+        .app_data_dir()
+        .map_err(|error| format!("Unable to resolve app data directory: {error}"))?;
+    fs::create_dir_all(&app_data_dir)
+        .map_err(|error| format!("Unable to create app data directory: {error}"))?;
+    let canonical_app_data_dir = fs::canonicalize(&app_data_dir)
+        .map_err(|error| format!("Unable to resolve app data directory: {error}"))?;
+
+    if !canonical_path.starts_with(&temp_log_dir)
+        && !canonical_path.starts_with(&canonical_app_data_dir)
+    {
+        return Err("Log path is outside the widget log directories".to_string());
+    }
+
+    let metadata = fs::metadata(&canonical_path)
+        .map_err(|error| format!("Unable to inspect log file: {error}"))?;
+    if !metadata.is_file() {
+        return Err("Log path is not a file".to_string());
+    }
+    if metadata.len() > 1024 * 1024 {
+        return Err("Log file is too large to copy".to_string());
+    }
+
+    fs::read_to_string(&canonical_path).map_err(|error| format!("Unable to read log file: {error}"))
+}
+
+#[tauri::command]
 fn set_tray_severity(app: AppHandle, severity: String) -> Result<(), String> {
     let Some(tray) = app.tray_by_id(MAIN_TRAY_ID) else {
         return Ok(());
@@ -934,6 +972,7 @@ fn main() {
             load_app_config,
             save_app_config,
             append_window_debug_log,
+            read_provider_log_file,
             set_tray_severity,
             quit_app
         ])

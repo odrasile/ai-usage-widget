@@ -713,6 +713,40 @@ body {
   white-space: nowrap;
 }
 
+.provider-status,
+.provider-status__segment,
+.provider-status__segment--log {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  min-width: max-content;
+  white-space: nowrap;
+}
+
+.provider-status__separator {
+  color: rgba(184, 190, 201, 0.72);
+}
+
+.provider-log-copy {
+  display: inline-grid;
+  width: 18px;
+  height: 18px;
+  padding: 0;
+  place-items: center;
+  border: 1px solid rgba(255, 255, 255, 0.16);
+  border-radius: 4px;
+  background: rgba(255, 255, 255, 0.08);
+  color: #d8deea;
+  cursor: pointer;
+  font-size: 11px;
+  line-height: 1;
+}
+
+.provider-log-copy:hover {
+  background: rgba(98, 184, 255, 0.18);
+  border-color: rgba(98, 184, 255, 0.32);
+}
+
 .empty {
   margin: auto 0;
   color: #c9d1df;
