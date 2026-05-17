@@ -2,7 +2,7 @@ import type { AppConfig, AppMetadata, ProviderUsage, UsageSnapshot, ViewMode } f
 import { getCurrentWindow } from "@tauri-apps/api/window";
 import { openUrl } from "@tauri-apps/plugin-opener";
 import type { Messages } from "./i18n";
-import { quitApp } from "./tauri";
+import { quitApp, readProviderLogFile } from "./tauri";
 
 type ResizeDirection = "East" | "North" | "NorthEast" | "NorthWest" | "South" | "SouthEast" | "SouthWest" | "West";
 
@@ -587,11 +587,15 @@ function createBody(isRefreshing: boolean, text: Messages): HTMLElement {
 
 function renderProvider(provider: ProviderUsage, text: Messages, viewMode: ViewMode, previousUsage?: ProviderUsage): HTMLElement {
   const item = document.createElement("article");
-  item.className = `provider${provider.stale ? " provider--stale" : ""}${provider.refreshing ? " provider--refreshing" : ""}`;
+  const stateClass = provider.state ? ` provider--state-${provider.state}` : "";
+  item.className = `provider${stateClass}${provider.stale ? " provider--stale" : ""}${provider.refreshing ? " provider--refreshing" : ""}`;
   item.dataset.provider = provider.provider;
+  if (provider.state) {
+    item.dataset.state = provider.state;
+  }
 
   if (!provider.usage) {
-    const status = provider.status ?? text.unavailable;
+    const statusTitle = providerStatusTitle(provider, text);
     const isGemini = provider.provider === "gemini";
     const label5h = isGemini ? "24h" : text.limit5h;
     
@@ -603,13 +607,14 @@ function renderProvider(provider: ProviderUsage, text: Messages, viewMode: ViewM
       <div class="limit-row">
         <div class="limit-row__meta limit-row__meta--status">
           <span class="limit-row__label">${escapeHtml(label5h)}</span>
-          <span class="limit-row__reset limit-row__reset--status" title="${escapeHtml(status)}">${escapeHtml(formatStatus(status))}</span>
+          <span class="limit-row__reset limit-row__reset--status" title="${escapeHtml(statusTitle)}">${renderProviderStatus(provider, text)}</span>
         </div>
         <div class="meter meter--empty" aria-label="Usage unavailable">
           <span class="meter__solid" style="width: 0%"></span>
         </div>
       </div>
     `;
+    attachLogCopyHandlers(item, text);
     return item;
   }
 
@@ -630,7 +635,7 @@ function renderProvider(provider: ProviderUsage, text: Messages, viewMode: ViewM
   }
 
   const warning = provider.stale && provider.status
-    ? `<div class="provider__warning" title="${escapeHtml(provider.status)}"><span class="provider__warning-icon">!</span><span class="provider__warning-text">${escapeHtml(formatStatus(provider.status))}</span></div>`
+    ? `<div class="provider__warning" title="${escapeHtml(providerStatusTitle(provider, text))}"><span class="provider__warning-icon">!</span><span class="provider__warning-text">${renderProviderStatus(provider, text)}</span></div>`
     : "";
 
   item.innerHTML = `
@@ -642,7 +647,98 @@ function renderProvider(provider: ProviderUsage, text: Messages, viewMode: ViewM
     ${warning}
   `;
 
+  attachLogCopyHandlers(item, text);
   return item;
+}
+
+function renderProviderStatus(provider: ProviderUsage, text: Messages): string {
+  const parts: string[] = [];
+  if (provider.stale) {
+    parts.push(`<span class="provider-status__segment provider-status__segment--cache">${escapeHtml(text.usingCachedData)}</span>`);
+  }
+
+  const status = formatStatus(provider.status ?? text.unavailable);
+  if (status) {
+    parts.push(`<span class="provider-status__segment provider-status__segment--state">${escapeHtml(status)}</span>`);
+  }
+
+  if (provider.log_path) {
+    const logPath = formatStatus(provider.log_path);
+    parts.push(`
+      <span class="provider-status__segment provider-status__segment--log">
+        <span>Log: ${escapeHtml(logPath)}</span>
+        <button class="provider-log-copy" type="button" data-log-path="${escapeAttribute(logPath)}" aria-label="${escapeAttribute(text.copyLog)}" title="${escapeAttribute(text.copyLog)}">⧉</button>
+      </span>
+    `);
+  }
+
+  return `<span class="provider-status">${parts.join('<span class="provider-status__separator"> · </span>')}</span>`;
+}
+
+function providerStatusTitle(provider: ProviderUsage, text: Messages): string {
+  const parts = [];
+  if (provider.stale) {
+    parts.push(text.usingCachedData);
+  }
+  if (provider.status) {
+    parts.push(formatStatus(provider.status));
+  }
+  if (provider.log_path) {
+    parts.push(`Log: ${formatStatus(provider.log_path)}`);
+  }
+  return parts.join(" · ") || text.unavailable;
+}
+
+function attachLogCopyHandlers(root: HTMLElement, text: Messages): void {
+  root.querySelectorAll<HTMLButtonElement>(".provider-log-copy").forEach((button) => {
+    button.addEventListener("click", (event) => {
+      event.preventDefault();
+      event.stopPropagation();
+      void copyProviderLog(button, text);
+    });
+  });
+}
+
+async function copyProviderLog(button: HTMLButtonElement, text: Messages): Promise<void> {
+  const logPath = button.dataset.logPath;
+  if (!logPath) {
+    return;
+  }
+
+  const originalText = button.textContent ?? "";
+  const originalTitle = button.title;
+  try {
+    const content = await readProviderLogFile(logPath);
+    await writeClipboardText(content);
+    button.textContent = "OK";
+    button.title = text.copiedLog;
+    window.setTimeout(() => {
+      button.textContent = originalText;
+      button.title = originalTitle;
+    }, 1500);
+  } catch (error) {
+    const message = error instanceof Error ? error.message : String(error);
+    button.title = `${text.copyLogFailed}: ${message}`;
+  }
+}
+
+async function writeClipboardText(value: string): Promise<void> {
+  if (navigator.clipboard?.writeText) {
+    await navigator.clipboard.writeText(value);
+    return;
+  }
+
+  const textarea = document.createElement("textarea");
+  textarea.value = value;
+  textarea.style.position = "fixed";
+  textarea.style.left = "-9999px";
+  document.body.appendChild(textarea);
+  textarea.select();
+  const copied = document.execCommand("copy");
+  textarea.remove();
+  if (!copied) {
+    throw new Error("Clipboard API unavailable");
+  }
 }
 
 function updateFooterState(root: HTMLElement, text: Messages, updatedAt: string, isRefreshing: boolean): void {

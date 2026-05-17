@@ -363,13 +363,14 @@ function mergeProviderWithPrevious(
     };
   }
 
-  const status = provider.status ? `${fallbackLabel}. ${provider.status}` : fallbackLabel;
   return {
     ...previousProvider,
+    ...provider,
+    usage: previousProvider.usage,
     available: false,
     stale: true,
     refreshing: false,
-    status
+    status: provider.status ?? fallbackLabel
   };
 }
 

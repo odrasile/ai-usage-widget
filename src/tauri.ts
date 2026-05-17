@@ -47,6 +47,10 @@ export async function appendWindowDebugLog(message: string): Promise<void> {
   await invoke("append_window_debug_log", { message });
 }
 
+export async function readProviderLogFile(path: string): Promise<string> {
+  return invoke<string>("read_provider_log_file", { path });
+}
+
 export async function setTraySeverity(severity: string): Promise<void> {
   await invoke("set_tray_severity", { severity });
 }

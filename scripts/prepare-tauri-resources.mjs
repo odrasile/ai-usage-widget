@@ -1,4 +1,4 @@
-import { cpSync, existsSync, mkdirSync, readdirSync, rmSync, statSync } from "node:fs";
+import { cpSync, existsSync, mkdirSync, readdirSync, rmSync, statSync, writeFileSync } from "node:fs";
 import path from "node:path";
 import { spawnSync } from "node:child_process";
 import { fileURLToPath } from "node:url";
@@ -11,6 +11,7 @@ const nodePtyTarget = path.join(outputRoot, "node_modules", "node-pty");
 
 rmSync(outputRoot, { force: true, recursive: true });
 mkdirSync(outputRoot, { recursive: true });
+writeFileSync(path.join(outputRoot, ".gitkeep"), "");
 
 copy(path.join(projectRoot, "backend"), path.join(outputRoot, "backend"));
 copy(path.join(nodePtySource, "package.json"), path.join(nodePtyTarget, "package.json"));

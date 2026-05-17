@@ -11,6 +11,11 @@ export type AppMetadata = {
 export type ProviderUsage = {
   provider: ProviderName;
   available: boolean;
+  state?: string;
+  message_key?: string;
+  action?: string;
+  detail?: string;
+  log_path?: string;
   status?: string;
   stale?: boolean;
   refreshing?: boolean;
